@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // Add rate limiting
+    function notTooManyRequests() {
+      return request.time > resource.data.lastAccess + duration.value(1, 's');
+    }
+
+    // Base rules for user data
+    match /users/{userId} {
+      // Allow users to read and write their own data
+      allow read: if isAuthenticated() && isOwner(userId);
+      // Allow writes from both authenticated users and webhook for subscriptions
+      allow write: if isAuthenticated() && (
+        isOwner(userId) || 
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscription']))
+      ) && notTooManyRequests();
+      
+      // Rules for chat sessions subcollection
+      match /chatSessions/{sessionId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+      
+      match /subscription/{document=**} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+    }
+
+    // Chat sessions collection (top-level)
+    match /chatSessions/{sessionId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow write: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+
+      // Messages subcollection
+      match /messages/{messageId} {
+        allow read, write: if isAuthenticated() && 
+          get(/databases/$(database)/documents/chatSessions/$(sessionId)).data.userId == request.auth.uid;
+      }
+    }
+
+    // Prevent access to all other documents
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+} 

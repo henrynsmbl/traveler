@@ -1,0 +1,75 @@
+{
+    "search_metadata": {
+      "id": "67a197fb33ccfbc963b41f4c",
+      "status": "Success",
+      "json_endpoint": "https://serpapi.com/searches/8b2c0502a98bb082/67a197fb33ccfbc963b41f4c.json",
+      "created_at": "2025-02-04 04:30:51 UTC",
+      "processed_at": "2025-02-04 04:30:51 UTC",
+      "google_flights_url": "https://www.google.com/travel/flights?hl=en&gl=us&curr=USD&tfs=CBwQAhoeEgoyMDI1LTAyLTA0agcIARIDREVOcgcIARIDTEhSQgEBSAFwAZgBAg&tfu=EgIIAQ",
+      "raw_html_file": "https://serpapi.com/searches/8b2c0502a98bb082/67a197fb33ccfbc963b41f4c.html",
+      "prettify_html_file": "https://serpapi.com/searches/8b2c0502a98bb082/67a197fb33ccfbc963b41f4c.prettify",
+      "total_time_taken": 0.71
+    },
+    "search_parameters": {
+      "engine": "google_flights",
+      "hl": "en",
+      "gl": "us",
+      "type": "2",
+      "departure_id": "DEN",
+      "arrival_id": "LHR",
+      "outbound_date": "2025-02-04",
+      "currency": "USD"
+    },
+    "best_flights": [
+      {
+        "flights": [
+          {
+            "departure_airport": {
+              "name": "Denver International Airport",
+              "id": "DEN",
+              "time": "2025-02-04 17:35"
+            },
+            "arrival_airport": {
+              "name": "Heathrow Airport",
+              "id": "LHR",
+              "time": "2025-02-05 09:40"
+            },
+            "duration": 545,
+            "airplane": "Boeing 787",
+            "airline": "United",
+            "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/UA.png",
+            "travel_class": "Economy",
+            "flight_number": "UA 27",
+            "ticket_also_sold_by": [
+              "Lufthansa",
+              "Austrian",
+              "Brussels Airlines"
+            ],
+            "legroom": "31 in",
+            "extensions": [
+              "Average legroom (31 in)",
+              "Wi-Fi for a fee",
+              "In-seat power & USB outlets",
+              "On-demand video",
+              "Carbon emissions estimate: 542 kg"
+            ],
+            "overnight": true
+          }
+        ],
+        "total_duration": 545,
+        "carbon_emissions": {
+          "this_flight": 542000,
+          "typical_for_this_route": 600000,
+          "difference_percent": -10
+        },
+        "price": 418,
+        "type": "One way",
+        "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/UA.png",
+        "booking_token": "WyJDalJJZGpjM1N5MXpUVFJMU1dOQlRIVnROVkZDUnkwdExTMHRMUzB0TFhCbVltSjBOVUZCUVVGQlIyVm9iRjkzUTJNMFYwTkJFZ1JWUVRJM0dnc0l5TVlDRUFJYUExVlRSRGdjY01qR0FnPT0iLFtbIkRFTiIsIjIwMjUtMDItMDQiLCJMSFIiLG51bGwsIlVBIiwiMjciXV1d"
+      }
+    ],
+    "other_flights": [
+      {
+      }
+    ]
+  }

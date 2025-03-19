@@ -1,0 +1,217 @@
+{
+    "search_metadata": {
+        "id": "67719cd3b705d64043af5dd3",
+        "status": "Success",
+        "json_endpoint": "https://serpapi.com/searches/9b1a0d85fdb6ed5b/67719cd3b705d64043af5dd3.json",
+        "created_at": "2024-12-29 19:02:43 UTC",
+        "processed_at": "2024-12-29 19:02:43 UTC",
+        "google_hotels_url": "https://www.google.com/_/TravelFrontendUi/data/batchexecute?rpcids=AtySUc&source-path=/travel/search&hl=en&gl=us&rt=c&soc-app=162&soc-platform=1&soc-device=1",
+        "raw_html_file": "https://serpapi.com/searches/9b1a0d85fdb6ed5b/67719cd3b705d64043af5dd3.html",
+        "prettify_html_file": "https://serpapi.com/searches/9b1a0d85fdb6ed5b/67719cd3b705d64043af5dd3.prettify",
+        "total_time_taken": 1.82
+    },
+    "search_parameters": {
+        "engine": "google_hotels",
+        "q": "best hotels in roatan",
+        "gl": "us",
+        "hl": "en",
+        "currency": "USD",
+        "check_in_date": "2024-12-30",
+        "check_out_date": "2024-12-31",
+        "adults": 2,
+        "children": 0
+    },
+    "search_information": {
+        "total_results": 677
+    },
+    "brands": [
+        {
+            "id": 20,
+            "name": "Choice Hotels",
+            "children": [
+                {
+                    "id": 29,
+                    "name": "Clarion"
+                }
+            ]
+        },
+        {
+            "id": 17,
+            "name": "IHG Hotels & Resorts",
+            "children": [
+                {
+                    "id": 127,
+                    "name": "Kimpton Hotels & Restaurants"
+                }
+            ]
+        }
+    ],
+    "properties": [
+        {
+            "type": "hotel",
+            "name": "Kimpton Grand Roatan Resort and Spa",
+            "description": "Tropical 1- to 3-bedroom suites in a stylish option with dining, a swim-up bar & a pool.",
+            "link": "https://www.grandroatanresortandspa.com/us/en/?&cm_mmc=WEB-_-KI-_-AMER-_-EN-_-EV-_-Google%20Business%20Profile-_-DD-_-GrandRoatanResortandSpa",
+            "gps_coordinates": {
+                "latitude": 16.270653499999998,
+                "longitude": -86.6005928
+            },
+            "check_in_time": "3:00\u202fPM",
+            "check_out_time": "11:00\u202fAM",
+            "rate_per_night": {
+                "lowest": "$1,097",
+                "extracted_lowest": 1097,
+                "before_taxes_fees": "$864",
+                "extracted_before_taxes_fees": 864
+            },
+            "total_rate": {
+                "lowest": "$1,097",
+                "extracted_lowest": 1097,
+                "before_taxes_fees": "$864",
+                "extracted_before_taxes_fees": 864
+            },
+            "nearby_places": [
+                {
+                    "name": "West Bay Beach",
+                    "transportations": [
+                        {
+                            "type": "Walking",
+                            "duration": "2 min"
+                        }
+                    ]
+                },
+                {
+                    "name": "Juan Manuel G\u00e1lvez International Airport",
+                    "transportations": [
+                        {
+                            "type": "Taxi",
+                            "duration": "28 min"
+                        }
+                    ]
+                },
+                {
+                    "name": "Sea Cat",
+                    "transportations": [
+                        {
+                            "type": "Walking",
+                            "duration": "1 min"
+                        }
+                    ]
+                }
+            ],
+            "hotel_class": "5-star hotel",
+            "extracted_hotel_class": 5,
+            "images": [
+                {
+                    "thumbnail": "https://lh3.googleusercontent.com/proxy/9laMTipzkzBM5j7nUhX8oOeWx6zYI4ZWwHIsZDZKzEUbglhgLtQoahEQBYYvAMgEQcAtPql1Aaeru3nzYDE5dCbO2HavH_Vwx-trfehKrucydngfp1hdFPnhvCG4I6LUAVIU1K_lLQwROwnNruZ4L_AB1IXUgA=s287-w287-h192-n-k-no-v1",
+                    "original_image": "https://d2hyz2bfif3cr8.cloudfront.net/imageRepo/1/0/176/502/943/RTBGR_9415598908_O.jpg"
+                }
+            ],
+            "overall_rating": 4.7,
+            "reviews": 1349,
+            "ratings": [
+                {
+                    "stars": 5,
+                    "count": 1055
+                },
+                {
+                    "stars": 4,
+                    "count": 203
+                },
+                {
+                    "stars": 3,
+                    "count": 49
+                },
+                {
+                    "stars": 2,
+                    "count": 18
+                },
+                {
+                    "stars": 1,
+                    "count": 24
+                }
+            ],
+            "location_rating": 3.2,
+            "reviews_breakdown": [
+                {
+                    "name": "Nature",
+                    "description": "Nature and outdoor activities",
+                    "total_mentioned": 180,
+                    "positive": 162,
+                    "negative": 9,
+                    "neutral": 9
+                },
+                {
+                    "name": "Service",
+                    "description": "Service",
+                    "total_mentioned": 211,
+                    "positive": 191,
+                    "negative": 16,
+                    "neutral": 4
+                },
+                {
+                    "name": "Property",
+                    "description": "Property",
+                    "total_mentioned": 167,
+                    "positive": 152,
+                    "negative": 9,
+                    "neutral": 6
+                },
+                {
+                    "name": "Wellness",
+                    "description": "Wellness",
+                    "total_mentioned": 21,
+                    "positive": 20,
+                    "negative": 1,
+                    "neutral": 0
+                },
+                {
+                    "name": "Dining",
+                    "description": "Food and Beverage",
+                    "total_mentioned": 88,
+                    "positive": 66,
+                    "negative": 14,
+                    "neutral": 8
+                },
+                {
+                    "name": "Spa",
+                    "description": "Spa",
+                    "total_mentioned": 19,
+                    "positive": 18,
+                    "negative": 1,
+                    "neutral": 0
+                }
+            ],
+            "amenities": [
+                "Breakfast ($)",
+                "Free Wi-Fi",
+                "Parking ($)",
+                "Outdoor pool",
+                "Hot tub",
+                "Air conditioning",
+                "Pet-friendly",
+                "Fitness centre",
+                "Spa",
+                "Beach access",
+                "Bar",
+                "Restaurant",
+                "Room service",
+                "Kitchen in some rooms",
+                "Airport shuttle",
+                "Golf",
+                "Full-service laundry",
+                "Accessible",
+                "Business centre",
+                "Child-friendly"
+            ],
+            "property_token": "ChkIu-ij9beEpqBRGg0vZy8xMWI2NWo3MTI5EAE",
+            "serpapi_property_details_link": "https://serpapi.com/search.json?adults=2&check_in_date=2024-12-30&check_out_date=2024-12-31&children=0&currency=USD&engine=google_hotels&gl=us&hl=en&property_token=ChkIu-ij9beEpqBRGg0vZy8xMWI2NWo3MTI5EAE&q=best+hotels+in+roatan"
+        }
+    ],
+    "serpapi_pagination": {
+        "current_from": 1,
+        "current_to": 20,
+        "next_page_token": "CBI=",
+        "next": "https://serpapi.com/search.json?adults=2&check_in_date=2024-12-30&check_out_date=2024-12-31&children=0&currency=USD&engine=google_hotels&gl=us&hl=en&next_page_token=CBI%3D&q=best+hotels+in+roatan"
+    }
+}
