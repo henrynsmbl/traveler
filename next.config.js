@@ -2,8 +2,7 @@
 const nextConfig = {
   // Add any necessary configurations here
   reactStrictMode: true,
-  // Remove swcMinify as it's causing a warning
-  // swcMinify: true,
+  swcMinify: true,
   
   // Ignore ESLint errors during build
   eslint: {
