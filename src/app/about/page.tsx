@@ -152,7 +152,7 @@ export default function AboutPage() {
               Have questions/suggestions? We're here to help make your travel dreams a reality.
             </p>
             <a 
-              href="mailto:support@aitinerary.world"
+              href="mailto:henry@aitinerary.world"
               className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-gradient-to-r from-blue-600 to-purple-500 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group mb-16"
             >
               <span>Get in Touch</span>
