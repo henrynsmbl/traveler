@@ -24,10 +24,19 @@ const files = ["citysketch1.png", "citysketch2.png", "citysketch3.png", "cityske
 const useRotatingBackground = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [preloadedImages, setPreloadedImages] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Use the first image in the rotation as the default background
+  const defaultBackground = `/backgrounds/${encodeURIComponent(files[0])}`;
 
   // Preload all images when component mounts
   useEffect(() => {
     const preloadImages = async () => {
+      // First preload just the default image to ensure it's available immediately
+      const defaultImg = new Image();
+      defaultImg.src = defaultBackground;
+      
+      // Then preload the rest of the images
       const imagePromises = files.map((file) => {
         return new Promise((resolve, reject) => {
           const img = new Image();
@@ -40,10 +49,12 @@ const useRotatingBackground = () => {
       try {
         await Promise.all(imagePromises);
         setPreloadedImages(true);
+        setIsLoading(false);
       } catch (error) {
         console.error('Failed to preload images:', error);
         // Still set to true so we don't block the UI if some images fail
         setPreloadedImages(true);
+        setIsLoading(false);
       }
     };
 
@@ -61,7 +72,8 @@ const useRotatingBackground = () => {
     return () => clearInterval(interval);
   }, [preloadedImages]);
 
-  return `/backgrounds/${encodeURIComponent(files[currentIndex])}`;
+  // Return default background while loading, then switch to rotating backgrounds
+  return isLoading ? defaultBackground : `/backgrounds/${encodeURIComponent(files[currentIndex])}`;
 };
 
 // Separate the tutorial section into its own component
