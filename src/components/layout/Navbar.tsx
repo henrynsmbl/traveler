@@ -64,12 +64,12 @@ const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-50">
+      <nav className="fixed top-0 left-0 right-0 h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-50 shadow-sm">
         <div className="h-full flex items-center justify-between max-w-[100vw] px-4">
           <div className="w-[64px] flex-none">
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors duration-200"
               aria-label={isSidebarOpen ? "Close menu" : "Open menu"}
             >
               {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
@@ -77,7 +77,7 @@ const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           <div className="flex-1 flex justify-center items-center">
-            <Link href="/" className="flex items-center space-x-2">
+            <Link href="/" className="flex items-center space-x-2 hover:opacity-90 transition-opacity duration-200">
               <div className="w-8 h-8 relative flex-shrink-0">
                 <img
                   src="/logo.svg"
@@ -101,7 +101,7 @@ const Navbar: React.FC<NavbarProps> = ({
         ref={sidebarRef}
         className={`fixed top-16 left-0 w-full md:w-64 bottom-0 bg-white dark:bg-gray-800 
           border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-200 ease-in-out z-30
-          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} shadow-lg md:shadow-none`}
       >
         <div className="flex flex-col h-full">
           <div className="flex-1 overflow-y-auto">
@@ -118,7 +118,7 @@ const Navbar: React.FC<NavbarProps> = ({
                       onClick={() => onSessionSelect(session.id)}
                       className={`w-full text-left p-3 rounded-lg transition-colors duration-200 cursor-pointer
                         ${currentSessionId === session.id 
-                          ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200' 
+                          ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 shadow-sm' 
                           : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'}`}
                     >
                       <div className="flex items-center">
@@ -164,6 +164,7 @@ const Navbar: React.FC<NavbarProps> = ({
                 <Link
                   key={`nav-item-${item.href}-${index}`}
                   href={item.href}
+                  onClick={() => setIsSidebarOpen(false)}
                   className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 
                     hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors
                     group relative overflow-hidden"

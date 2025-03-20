@@ -16,11 +16,20 @@ export default {
         highlight: {
           '0%': { transform: 'scaleX(0)', transformOrigin: 'left' },
           '100%': { transform: 'scaleX(1)', transformOrigin: 'left' }
+        },
+        'gradient-x': {
+          '0%, 100%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
         }
       },
       animation: {
-        highlight: 'highlight 1s ease-out forwards'
-      }
+        highlight: 'highlight 1s ease-out forwards',
+        'gradient-x': 'gradient-x 15s ease infinite',
+      },
+      // Add scrollbar utilities
+      scrollbarGutter: {
+        stable: 'stable',
+      },
     },
   },
   plugins: [
