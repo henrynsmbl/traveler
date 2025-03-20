@@ -6,6 +6,8 @@ import { AuthProvider } from '@/components/auth/AuthContext'
 import { ChatProvider } from '@/components/chat/ChatContext'
 import AppLayout from '@/components/layout/AppLayout'
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export default function RootLayout({
   children,
@@ -15,6 +17,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
+        <Analytics />
+        <SpeedInsights />
         <GoogleOAuthProvider clientId="your-client-id.apps.googleusercontent.com">
           <AuthProvider>
             <ChatProvider>
