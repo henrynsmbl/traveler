@@ -23,14 +23,43 @@ const files = ["citysketch1.png", "citysketch2.png", "citysketch3.png", "cityske
 
 const useRotatingBackground = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [preloadedImages, setPreloadedImages] = useState<boolean>(false);
 
+  // Preload all images when component mounts
   useEffect(() => {
+    const preloadImages = async () => {
+      const imagePromises = files.map((file) => {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.src = `/backgrounds/${encodeURIComponent(file)}`;
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+        });
+      });
+      
+      try {
+        await Promise.all(imagePromises);
+        setPreloadedImages(true);
+      } catch (error) {
+        console.error('Failed to preload images:', error);
+        // Still set to true so we don't block the UI if some images fail
+        setPreloadedImages(true);
+      }
+    };
+
+    preloadImages();
+  }, []);
+
+  // Only start rotating after images are preloaded
+  useEffect(() => {
+    if (!preloadedImages) return;
+    
     const interval = setInterval(() => {
       setCurrentIndex((prevIndex) => (prevIndex + 1) % files.length);
     }, 5000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [preloadedImages]);
 
   return `/backgrounds/${encodeURIComponent(files[currentIndex])}`;
 };
@@ -75,8 +104,7 @@ export default function AboutPage() {
               className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold tracking-tight text-center relative"
               style={{ 
                 color: 'white',
-                WebkitTextStroke: 'clamp(1px, 0.3vw, 3px) rgb(59, 130, 246)',
-                textShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                textShadow: '0 4px 8px rgba(0,0,0,0.3), 0 0 4px rgba(59, 130, 246, 0.8)',
               }}
             >
               Travel, Your Way.
