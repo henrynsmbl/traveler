@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Check } from 'lucide-react'
 import { createCheckoutSession } from '@/lib/stripe/subscription'
 import { useRouter } from 'next/navigation'
 import { auth } from '@/lib/firebase/config'
+import { onAuthStateChanged } from 'firebase/auth'
 import getStripe from '@/lib/stripe/client';
 import SubscribeButton from '@/components/stripe/SubscribeButton';
 
@@ -41,13 +42,23 @@ const pricingTiers: PricingTier[] = [
 export default function SubscriptionPage() {
   const [isYearly, setIsYearly] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [isAuthChecking, setIsAuthChecking] = useState(true)
   const router = useRouter()
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setIsAuthChecking(false)
+    })
+
+    return () => unsubscribe()
+  }, [router])
 
   const handleSubscribe = async (tier: PricingTier) => {
     try {
       const user = auth.currentUser;
       if (!user) {
-        router.push('/login');
+        // Redirect to signin page if user is not authenticated
+        router.push('/signin');
         return;
       }
 
@@ -81,6 +92,15 @@ export default function SubscriptionPage() {
       setIsLoading(false);
     }
   };
+
+  // Show loading state while checking authentication
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        <div className="animate-pulse text-xl text-gray-600 dark:text-gray-300">Loading...</div>
+      </div>
+    )
+  }
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 overflow-y-auto">
