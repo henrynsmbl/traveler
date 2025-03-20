@@ -3,9 +3,6 @@
 
 # all video files and image files
 *.mp4
-*.jpg
-*.jpeg
-*.png
 
 # games folder
 espn\ pitch/games
