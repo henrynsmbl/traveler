@@ -19,9 +19,24 @@ interface RichContentProps {
   onHotelSelect: (hotel: HotelData) => void;
   selections: Selection[];
   hideOtherFlights?: boolean;
+  onMessageRefClick?: (messageId: string) => void;
 }
 
 const MemoizedHotelDisplay = React.memo(HotelDisplay);
+
+// Helper function to process message references in text
+const processMessageReferences = (text: string, onMessageRefClick?: (messageId: string) => void) => {
+  if (!text || !onMessageRefClick) return text;
+  
+  // Replace message number references with clickable spans
+  return text.replace(
+    /Message #(\d+)/g,
+    (match, messageNum) => {
+      const messageId = `msg-${messageNum}`;
+      return `<span class="text-blue-500 cursor-pointer hover:underline" data-message-ref="${messageId}">${match}</span>`;
+    }
+  );
+};
 
 const RichContent: React.FC<RichContentProps> = React.memo(({ 
     content, 
@@ -30,14 +45,50 @@ const RichContent: React.FC<RichContentProps> = React.memo(({
     onFlightSelect,
     onHotelSelect,
     selections,
-    hideOtherFlights
+    hideOtherFlights,
+    onMessageRefClick
   }) => {
+    // Add a ref for the container to handle click events
+    const containerRef = React.useRef<HTMLDivElement>(null);
+    
+    // Add click handler for message references
+    React.useEffect(() => {
+      const container = containerRef.current;
+      if (!container || !onMessageRefClick) return;
+      
+      const handleClick = (e: MouseEvent) => {
+        const target = e.target as HTMLElement;
+        if (target.hasAttribute('data-message-ref')) {
+          e.preventDefault();
+          const messageId = target.getAttribute('data-message-ref');
+          if (messageId) {
+            onMessageRefClick(messageId);
+          }
+        }
+      };
+      
+      container.addEventListener('click', handleClick);
+      return () => {
+        container.removeEventListener('click', handleClick);
+      };
+    }, [onMessageRefClick]);
+    
     switch (content.type) {
       case 'text':
+        // Process the text content for message references if needed
+        const textContent = content.content as string;
+        const processedContent = onMessageRefClick ? 
+          processMessageReferences(textContent, onMessageRefClick) : 
+          textContent;
+        
         return (
-          <div className="space-y-2">
-            <MarkdownMessage content={content.content as string} 
-            className={isUser ? 'text-white' : ''} />
+          <div className="space-y-2" ref={containerRef}>
+            <MarkdownMessage 
+              content={textContent} 
+              className={isUser ? 'text-white' : ''} 
+              processedContent={processedContent}
+              enableReferences={!!onMessageRefClick}
+            />
             {content.citations && <Citations citations={content.citations} />}
           </div>
         );
@@ -120,6 +171,7 @@ const RichContent: React.FC<RichContentProps> = React.memo(({
     if (prevProps.isUser !== nextProps.isUser) return false;
     if (prevProps.content.type !== nextProps.content.type) return false;
     if (prevProps.hideOtherFlights !== nextProps.hideOtherFlights) return false;
+    if (prevProps.onMessageRefClick !== nextProps.onMessageRefClick) return false;
     
     // Only do deep comparison if content or selections changed
     const contentChanged = prevProps.content !== nextProps.content;

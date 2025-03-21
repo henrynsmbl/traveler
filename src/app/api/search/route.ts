@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
-const API_URL = "https://8uz1zshh6c.execute-api.us-east-2.amazonaws.com/dev/search"
+// Use environment variable for API URL
+const API_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL || "https://8uz1zshh6c.execute-api.us-east-2.amazonaws.com/dev/search"
 
 // Helper function to format chat history with enhanced context tracking
 function formatChatHistory(history: any[]): string {
@@ -37,15 +38,15 @@ function formatChatHistory(history: any[]): string {
     }
 
     return {
-      text: `${msg.isUser ? 'User' : 'Assistant'}: ${messageContent}`,
-      messageIndex: recentHistory.length - index,
+      text: `${msg.isUser ? 'User' : 'Assistant'} (Message #${index + 1}): ${messageContent}`,
+      messageIndex: index + 1,
       weight: (index + 1) / recentHistory.length // Weight based on recency
     };
   }).reverse(); // Reverse to get chronological order
   
-  // Build the context string with message numbers and weights
+  // Build the context string with message numbers
   const contextString = processedMessages
-    .map(msg => `[Message ${msg.messageIndex} (Relevance: ${msg.weight.toFixed(2)})] ${msg.text}`)
+    .map(msg => msg.text)
     .join('\n\n');
 
   // Format as expected by the Lambda function with enhanced instructions
@@ -70,15 +71,19 @@ export async function POST(request: Request) {
     // Prepare the payload for the external API with specific instructions
     const payload = {
       context: chatHistory ? 
-        `${chatHistory}\n\nBe accurate and straightforward. Format any lists with "- " at the start of each item. When referencing previous information, explicitly mention the message number or item number (e.g., "In Message 2, Item 3..." or "the location mentioned in Message 1"). If the user refers to a specific item or message, acknowledge that reference in your response.` : 
+        `Previous conversation:\n${chatHistory}\n\nBe accurate and straightforward. When referencing previous information, explicitly mention the message number (e.g., "As mentioned in Message #2...").` : 
         "Be accurate and straightforward.",
       prompt: prompt
     }
+
+    // Get API key from environment variable
+    const apiKey = process.env.API_GATEWAY_KEY || "";
 
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-api-key': apiKey, // Add API key for authorization
       },
       body: JSON.stringify({ body: JSON.stringify(payload) })
     })
