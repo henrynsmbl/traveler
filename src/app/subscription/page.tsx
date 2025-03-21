@@ -33,8 +33,8 @@ const pricingTiers: PricingTier[] = [
       "Map integration"
     ],
     priceId: {
-      monthly: "price_1Qo8EyIzmoU5zafNnI0qo2yQ",
-      yearly: "price_PLACEHOLDER_BASIC_YEARLY"
+      monthly: "price_1R59roIzmoU5zafNovVMqvVK",
+      yearly: "price_1R59roIzmoU5zafNJNxPLXN9"
     }
   }
 ]
