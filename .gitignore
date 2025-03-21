@@ -4,10 +4,6 @@
 # all video files and image files
 *.mp4
 
-# games folder
-espn\ pitch/games
-espn\ pitch/env2
-
 # dependencies
 /node_modules
 /.pnp

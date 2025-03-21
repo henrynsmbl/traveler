@@ -18,6 +18,7 @@ export interface Airport {
     extensions: string[];
     overnight?: boolean;
     often_delayed_by_over_30_min?: boolean;
+    price?: number;
   }
   
   export interface Layover {
@@ -42,4 +43,13 @@ export interface Airport {
     type: string;
     airline_logo: string;
     extensions: string[];
+  }
+  
+  export interface FlightFilters {
+    airlines?: string[];
+    maxPrice?: number;
+    maxDuration?: number;
+    departureTime?: string;
+    stops?: number;
+    travelClass?: string;
   }

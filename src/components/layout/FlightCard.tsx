@@ -196,7 +196,7 @@ const FlightCard: React.FC<FlightCardProps> = ({
                 {flightData.layovers && index < flightData.layovers.length && (
                   <div className="mt-2 p-2 bg-gray-50 rounded-md">
                     <div className="text-sm font-medium">
-                      {flightData.layovers[index].duration}m layover in {flightData.layovers[index].name}
+                      {Math.floor(flightData.layovers[index].duration / 60)}h {flightData.layovers[index].duration % 60}m layover in {flightData.layovers[index].name}
                     </div>
                   </div>
                 )}

@@ -85,3 +85,15 @@ export interface Transportation {
     };
     properties: HotelData[];
   }
+
+  // New interface for hotel filters
+  export interface HotelFilters {
+    priceRange?: {
+      min: number;
+      max: number;
+    };
+    starRating?: number[];
+    amenities?: string[];
+    minReviewScore?: number;
+    nearbyLocations?: string[];
+  }
