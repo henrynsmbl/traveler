@@ -82,8 +82,8 @@ export async function POST(request: Request) {
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey, // Add API key for authorization
+        'Content-Type': 'application/json'//,
+        //'x-api-key': apiKey, // Add API key for authorization
       },
       body: JSON.stringify({ body: JSON.stringify(payload) })
     })

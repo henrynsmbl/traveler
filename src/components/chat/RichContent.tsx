@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react';
+import React, { useState } from 'react';
 import { StaticTable, EditableTable } from './Tables';
 import FlightDisplay from '../flight/FlightDisplay';
 import HotelDisplay from '../hotel/HotelDisplay';
@@ -10,6 +10,9 @@ import type { FlightData } from '@/types/flight';
 import type { HotelData } from '@/types/hotel';
 import type { Selection } from '@/types/selections';
 import type { TableData } from './Tables';
+import { ChevronDown } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface RichContentProps {
   content: MessageContent;
@@ -48,6 +51,8 @@ const RichContent: React.FC<RichContentProps> = React.memo(({
     hideOtherFlights,
     onMessageRefClick
   }) => {
+    const [showSources, setShowSources] = useState(false);
+    
     // Add a ref for the container to handle click events
     const containerRef = React.useRef<HTMLDivElement>(null);
     
