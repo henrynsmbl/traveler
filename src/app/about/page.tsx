@@ -19,7 +19,7 @@ const steps = [
   }
 ];
 
-const files = ["citysketch1.png", "citysketch2.png", "citysketch3.png", "citysketch4.png", "mountainsketch1.png", "mountainsketch2.png", "mountainsketch3.png", "mountainsketch4.png", "beachsketch1.png", "beachsketch2.png", "beachsketch3.png", "beachsketch4.png"]
+const files = ["citysketch1.png", "citysketch2.png", "mountainsketch1.png", "mountainsketch2.png", "beachsketch1.png", "beachsketch2.png"]
 
 const useRotatingBackground = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -148,6 +148,9 @@ export default function AboutPage() {
           </div>
         </div>
       </div>
+
+      {/* Add spacing div between sections - reduced height */}
+      <div className="py-8 md:py-12 bg-gradient-to-b from-white to-blue-50/30 dark:from-gray-900 dark:to-gray-800/30"></div>
 
       {/* Tutorial Section - removed white background wrapper */}
       <TutorialSection />
