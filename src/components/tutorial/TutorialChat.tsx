@@ -9,6 +9,7 @@ import flightExample from '../../../public/flight_example_result.json';
 import hotelExample from '../../../public/hotel_example_result.json';
 import React from 'react';
 import { MarkdownMessage } from '../chat/MessageComponents';
+import ReactMarkdown from 'react-markdown';
 
 const TutorialHighlight = ({ children }: { children: React.ReactNode }) => {
   return (
@@ -174,6 +175,24 @@ export const TutorialChat = () => {
     return () => clearInterval(timer);
   }, [isPaused, nextConversation]);
 
+  const renderMarkdownContent = (content: any): React.ReactNode => {
+    // If it's already a React element, return it directly
+    if (React.isValidElement(content)) {
+      return content;
+    }
+    
+    // If it's not a string, try to convert it
+    if (typeof content !== 'string') {
+      if (content && typeof content === 'object') {
+        return <ReactMarkdown>{content.text || JSON.stringify(content)}</ReactMarkdown>;
+      }
+      return null;
+    }
+    
+    // If it's a string, render it as markdown
+    return <ReactMarkdown>{content}</ReactMarkdown>;
+  };
+
   return (
     <div className="w-full max-w-[100vw] px-2 sm:px-4 sm:w-[92%] max-w-2xl mx-auto relative pb-8 group">
       <div className="overflow-hidden rounded-lg">
@@ -210,7 +229,7 @@ export const TutorialChat = () => {
                           content.type === 'text' ? (
                             <div key={`text-${contentIndex}`} className="prose dark:prose-invert max-w-none w-full">
                               <MarkdownMessage 
-                                content={processContent(content.content as string)}
+                                content={typeof content.content === 'string' ? content.content : JSON.stringify(content.content)}
                                 className={`${message.isUser ? 'text-white' : ''} break-words`}
                               />
                             </div>

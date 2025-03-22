@@ -82,6 +82,7 @@ const TutorialSection = () => {
     <div className="mx-auto max-w-7xl pb-16 sm:pb-32 overflow-hidden">
       <div className="text-center mb-8 sm:mb-12 px-4 sm:px-6">
         <h2 className="text-3xl font-bold tracking-tight sm:text-4xl bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-200 bg-clip-text text-transparent">
+          How It Works
         </h2>
         <div className="mt-4 mx-auto w-24 h-1 bg-gradient-to-r from-blue-500 to-transparent rounded-full" />
       </div>

@@ -41,11 +41,13 @@ const FlightDisplay: React.FC<FlightDisplayProps> = ({
     const airlines = new Set<string>();
     
     allFlights.forEach(flightData => {
-      flightData.flights.forEach(flight => {
-        if (flight.airline) {
-          airlines.add(flight.airline);
-        }
-      });
+      if (flightData && flightData.flights) {
+        flightData.flights.forEach(flight => {
+          if (flight && flight.airline) {
+            airlines.add(flight.airline);
+          }
+        });
+      }
     });
     
     return Array.from(airlines).sort();
@@ -68,13 +70,13 @@ const FlightDisplay: React.FC<FlightDisplayProps> = ({
     }
 
     const filterFlight = (flight: FlightData) => {
-      if (!flight) return false;
+      if (!flight || !flight.flights) return false;
       
       // Apply search query filter
       if (searchQuery) {
         const searchLower = searchQuery.toLowerCase();
         const matchesSearch = (
-          (flight.flights?.[0]?.airline?.toLowerCase().includes(searchLower)) ||
+          (flight.flights[0]?.airline?.toLowerCase().includes(searchLower)) ||
           flight.flights?.some(f => f?.flight_number?.toLowerCase().includes(searchLower)) ||
           flight.flights?.some(f => 
             f?.departure_airport?.name?.toLowerCase().includes(searchLower) ||
@@ -292,7 +294,7 @@ const FlightDisplay: React.FC<FlightDisplayProps> = ({
               <div className="p-4 space-y-4">
               {filteredFlights.other.map((flight, index) => (
                 <FlightCard 
-                  key={`${flight.flights[0].flight_number}-${index}`}
+                  key={`${flight.flights?.[0]?.flight_number || index}-${index}`}
                   flightData={flight}
                   isSelected={isFlightSelected(flight)}
                   onSelect={onFlightSelect}
