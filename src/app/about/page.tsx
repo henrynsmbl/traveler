@@ -23,8 +23,10 @@ const files = ["citysketch1.png", "citysketch2.png", "mountainsketch1.png", "mou
 
 const useRotatingBackground = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [previousIndex, setPreviousIndex] = useState(0);
   const [preloadedImages, setPreloadedImages] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isFading, setIsFading] = useState(false);
   
   // Use the first image in the rotation as the default background
   const defaultBackground = `/backgrounds/${encodeURIComponent(files[0])}`;
@@ -66,14 +68,29 @@ const useRotatingBackground = () => {
     if (!preloadedImages) return;
     
     const interval = setInterval(() => {
-      setCurrentIndex((prevIndex) => (prevIndex + 1) % files.length);
+      setPreviousIndex(currentIndex);
+      setIsFading(true);
+      
+      // Set a timeout to update the current index after fade begins
+      setTimeout(() => {
+        setCurrentIndex((prevIndex) => (prevIndex + 1) % files.length);
+        
+        // Reset the fading state after transition completes
+        setTimeout(() => {
+          setIsFading(false);
+        }, 1000);
+      }, 50);
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [preloadedImages]);
+  }, [preloadedImages, currentIndex]);
 
-  // Return default background while loading, then switch to rotating backgrounds
-  return isLoading ? defaultBackground : `/backgrounds/${encodeURIComponent(files[currentIndex])}`;
+  // Return both current and previous backgrounds for cross-fade effect
+  return {
+    current: isLoading ? defaultBackground : `/backgrounds/${encodeURIComponent(files[currentIndex])}`,
+    previous: isLoading ? defaultBackground : `/backgrounds/${encodeURIComponent(files[previousIndex])}`,
+    isFading
+  };
 };
 
 // Separate the tutorial section into its own component
@@ -92,20 +109,30 @@ const TutorialSection = () => {
 };
 
 export default function AboutPage() {
-  const backgroundImage = useRotatingBackground();
+  const background = useRotatingBackground();
 
   return (
     <main className="flex flex-col min-h-screen overflow-x-hidden bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Hero Section with Steps */}
       <div 
         className="relative min-h-screen w-full bg-cover bg-center bg-no-repeat flex flex-col justify-center items-center flex-shrink-0 pt-20 md:pt-0"
-        style={{ 
-          backgroundImage: `url("${backgroundImage}")`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          transition: 'background-image 1s ease-in-out',
-        }}
       >
+        {/* Background layers for cross-fade effect */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-opacity duration-1000 ease-in-out"
+          style={{ 
+            backgroundImage: `url("${background.current}")`,
+            opacity: background.isFading ? 0 : 1,
+          }}
+        />
+        <div 
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-opacity duration-1000 ease-in-out"
+          style={{ 
+            backgroundImage: `url("${background.previous}")`,
+            opacity: background.isFading ? 1 : 0,
+          }}
+        />
+        
         {/* Enhanced dark overlay with gradient */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/40 backdrop-blur-[2px]" />
         
