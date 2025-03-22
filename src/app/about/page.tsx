@@ -21,76 +21,32 @@ const steps = [
 
 const files = ["citysketch1.png", "citysketch2.png", "mountainsketch1.png", "mountainsketch2.png", "beachsketch1.png", "beachsketch2.png"]
 
-const useRotatingBackground = () => {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [previousIndex, setPreviousIndex] = useState(0);
-  const [preloadedImages, setPreloadedImages] = useState<boolean>(false);
+const useStaticBackground = () => {
   const [isLoading, setIsLoading] = useState(true);
-  const [isFading, setIsFading] = useState(false);
   
-  // Use the first image in the rotation as the default background
-  const defaultBackground = `/backgrounds/${encodeURIComponent(files[0])}`;
+  // Use the first image as the static background
+  const staticBackground = `/backgrounds/${encodeURIComponent(files[0])}`;
 
-  // Preload all images when component mounts
+  // Preload the image when component mounts
   useEffect(() => {
-    const preloadImages = async () => {
-      // First preload just the default image to ensure it's available immediately
-      const defaultImg = new Image();
-      defaultImg.src = defaultBackground;
+    const preloadImage = async () => {
+      const img = new Image();
+      img.src = staticBackground;
       
-      // Then preload the rest of the images
-      const imagePromises = files.map((file) => {
-        return new Promise((resolve, reject) => {
-          const img = new Image();
-          img.src = `/backgrounds/${encodeURIComponent(file)}`;
-          img.onload = () => resolve(img);
-          img.onerror = reject;
-        });
-      });
+      img.onload = () => {
+        setIsLoading(false);
+      };
       
-      try {
-        await Promise.all(imagePromises);
-        setPreloadedImages(true);
+      img.onerror = () => {
+        console.error('Failed to load background image');
         setIsLoading(false);
-      } catch (error) {
-        console.error('Failed to preload images:', error);
-        // Still set to true so we don't block the UI if some images fail
-        setPreloadedImages(true);
-        setIsLoading(false);
-      }
+      };
     };
 
-    preloadImages();
+    preloadImage();
   }, []);
 
-  // Only start rotating after images are preloaded
-  useEffect(() => {
-    if (!preloadedImages) return;
-    
-    const interval = setInterval(() => {
-      setPreviousIndex(currentIndex);
-      setIsFading(true);
-      
-      // Set a timeout to update the current index after fade begins
-      setTimeout(() => {
-        setCurrentIndex((prevIndex) => (prevIndex + 1) % files.length);
-        
-        // Reset the fading state after transition completes
-        setTimeout(() => {
-          setIsFading(false);
-        }, 1000);
-      }, 50);
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [preloadedImages, currentIndex]);
-
-  // Return both current and previous backgrounds for cross-fade effect
-  return {
-    current: isLoading ? defaultBackground : `/backgrounds/${encodeURIComponent(files[currentIndex])}`,
-    previous: isLoading ? defaultBackground : `/backgrounds/${encodeURIComponent(files[previousIndex])}`,
-    isFading
-  };
+  return staticBackground;
 };
 
 // Separate the tutorial section into its own component
@@ -109,30 +65,19 @@ const TutorialSection = () => {
 };
 
 export default function AboutPage() {
-  const background = useRotatingBackground();
+  const backgroundImage = useStaticBackground();
 
   return (
     <main className="flex flex-col min-h-screen overflow-x-hidden bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Hero Section with Steps */}
       <div 
         className="relative min-h-screen w-full bg-cover bg-center bg-no-repeat flex flex-col justify-center items-center flex-shrink-0 pt-20 md:pt-0"
+        style={{ 
+          backgroundImage: `url("${backgroundImage}")`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
       >
-        {/* Background layers for cross-fade effect */}
-        <div 
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-opacity duration-1000 ease-in-out"
-          style={{ 
-            backgroundImage: `url("${background.current}")`,
-            opacity: background.isFading ? 0 : 1,
-          }}
-        />
-        <div 
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-opacity duration-1000 ease-in-out"
-          style={{ 
-            backgroundImage: `url("${background.previous}")`,
-            opacity: background.isFading ? 1 : 0,
-          }}
-        />
-        
         {/* Enhanced dark overlay with gradient */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/40 backdrop-blur-[2px]" />
         
