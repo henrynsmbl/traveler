@@ -49,13 +49,17 @@ const AccountPage: React.FC = () => {
         throw new Error('Missing customerId');
       }
 
+      const customerId = subscription.customerId;
+      console.log('Customer ID being used:', customerId);
+      console.log('Stripe mode:', process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_') ? 'live' : 'test');
+
       const response = await fetch('/api/create-portal-session', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          customerId: subscription.customerId,
+          customerId: customerId,
           returnUrl: window.location.href,
         }),
       });

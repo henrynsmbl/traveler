@@ -6,7 +6,8 @@ if (!process.env.STRIPE_SECRET_KEY) {
 }
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2025-01-27.acacia'
+  apiVersion: '2025-01-27.acacia',
+  timeout: 30000,
 });
 
 export async function POST(request: Request) {
@@ -17,6 +18,11 @@ export async function POST(request: Request) {
     const baseUrl = request.headers.get('origin') || 'http://localhost:3000';
 
     console.log('Creating checkout session with:', { price_id, userId, email });
+
+    console.log('Stripe configuration:', {
+      apiVersion: stripe.getClientUserAgent ? 'Using client version' : 'API version in config',
+      keyType: process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_') ? 'live' : 'test',
+    });
 
     if (!price_id) {
       return NextResponse.json(
