@@ -13,8 +13,8 @@ import ReactMarkdown from 'react-markdown';
 
 const TutorialHighlight = ({ children }: { children: React.ReactNode }) => {
   return (
-    <span className="relative group">
-      <div className="absolute -top-6 sm:-top-8 left-1/2 transform -translate-x-1/2 z-10 hidden group-hover:block">
+    <span className="relative group mt-6 pt-3 inline-block">
+      <div className="absolute -top-6 sm:-top-7 left-1/2 transform -translate-x-1/2 z-10 opacity-90 group-hover:opacity-100 transition-opacity">
         <div className="bg-blue-500 text-white px-2 sm:px-3 py-1 rounded-full shadow-lg flex items-center gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap">
           <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
           <span>Add to aitinerary</span>
@@ -58,6 +58,14 @@ const tutorialMessages: Array<{ title: string; messages: Message[] }> = [
           content: "what is a good place to solo travel?"
         }],
         isUser: true,
+        timestamp: new Date()
+      },
+      {
+        contents: [{
+          type: 'text',
+          content: "\n\n"
+        }],
+        isUser: false,
         timestamp: new Date()
       },
       {
@@ -125,12 +133,12 @@ const processContent = (content: string) => {
   }
 
   // Split by TutorialHighlight tags first
-  const parts = content.split(/(<TutorialHighlight>.*?<\/TutorialHighlight>)/g);
+  const parts = content.split(/(<TutorialHighlight>[\s\S]*?<\/TutorialHighlight>)/g);
   
   return parts.map((part, index) => {
     if (part.startsWith('<TutorialHighlight>')) {
       // Extract content between TutorialHighlight tags
-      const highlightContent = part.replace(/<TutorialHighlight>(.*?)<\/TutorialHighlight>/, '$1');
+      const highlightContent = part.replace(/<TutorialHighlight>([\s\S]*?)<\/TutorialHighlight>/, '$1');
       
       // Process bold text
       const boldParts = highlightContent.split(/(\*\*.*?\*\*)/g);
@@ -160,114 +168,136 @@ const processContent = (content: string) => {
 };
 
 export const TutorialChat = () => {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-
-  const nextConversation = useCallback(() => {
-    setCurrentIndex((prev) => (prev + 1) % tutorialMessages.length);
-  }, []);
-
-  useEffect(() => {
-    const timer = setInterval(nextConversation, 7000);
-    if (isPaused) {
-      clearInterval(timer);
-    }
-    return () => clearInterval(timer);
-  }, [isPaused, nextConversation]);
-
-  const renderMarkdownContent = (content: any): React.ReactNode => {
-    // If it's already a React element, return it directly
-    if (React.isValidElement(content)) {
-      return content;
-    }
-    
-    // If it's not a string, try to convert it
-    if (typeof content !== 'string') {
-      if (content && typeof content === 'object') {
-        return <ReactMarkdown>{content.text || JSON.stringify(content)}</ReactMarkdown>;
-      }
-      return null;
-    }
-    
-    // If it's a string, render it as markdown
-    return <ReactMarkdown>{content}</ReactMarkdown>;
-  };
-
   return (
-    <div className="w-full max-w-[100vw] px-2 sm:px-4 sm:w-[92%] max-w-2xl mx-auto relative pb-8 group">
-      <div className="overflow-hidden rounded-lg">
-        <div 
-          className="transition-transform duration-1000 ease-in-out flex w-full"
-          style={{ transform: `translateX(-${currentIndex * 100}%)` }}
-        >
-          {tutorialMessages.map((conversation, convIndex) => (
-            <div 
-              key={convIndex}
-              className="w-full flex-shrink-0 flex-grow-0 overflow-hidden"
-              style={{ width: '100%', minWidth: '100%', maxWidth: '100%' }}
-            >
-              <div className="mb-2 sm:mb-6">
-                <div className="inline-block">
-                  <h2 className="text-base sm:text-lg md:text-2xl font-semibold truncate">
-                    {tutorialMessages[convIndex].title}
-                  </h2>
-                  <div className="mt-1 sm:mt-2 h-0.5 sm:h-1 w-full bg-gradient-to-r from-blue-500 to-blue-500/0"></div>
-                </div>
-              </div>
-              <div className="space-y-2 sm:space-y-6 w-full">
-                {tutorialMessages[convIndex].messages.map((message, index) => (
-                  <div key={`message-${convIndex}-${index}`} className="px-0.5 sm:px-2 w-full">
-                    {message.isUser ? (
-                      <div key={`user-${index}`} className="flex justify-end w-full">
-                        <div className="bg-[#4B7BF5] text-white px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg max-w-[85%] text-sm sm:text-base break-words">
-                          {message.contents[0].content as string}
-                        </div>
-                      </div>
-                    ) : (
-                      <div key={`assistant-${index}`} className="text-gray-800 dark:text-gray-200 text-sm sm:text-base w-full">
-                        {message.contents.map((content, contentIndex) => (
-                          content.type === 'text' ? (
-                            <div key={`text-${contentIndex}`} className="prose dark:prose-invert max-w-none w-full">
-                              <MarkdownMessage 
-                                content={typeof content.content === 'string' ? content.content : JSON.stringify(content.content)}
-                                className={`${message.isUser ? 'text-white' : ''} break-words`}
-                              />
-                            </div>
-                          ) : (
-                            <div key={`rich-${contentIndex}`} className="transform scale-[0.85] sm:scale-90 md:scale-95 origin-left w-full overflow-hidden">
-                              <RichContent
-                                content={content}
-                                isUser={false}
-                                onFlightSelect={() => {}}
-                                onHotelSelect={() => {}}
-                                selections={[]}
-                                hideOtherFlights={true}
-                              />
-                            </div>
-                          )
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
+    <div className="w-full max-w-[100vw] px-2 sm:px-4 mx-auto relative pb-8">
+      {/* Desktop Grid Layout - hidden on mobile */}
+      <div className="hidden md:grid grid-cols-2 gap-6 lg:gap-8">
+        {tutorialMessages.map((conversation, convIndex) => (
+          <div 
+            key={convIndex}
+            className="w-full overflow-hidden bg-white/50 dark:bg-gray-800/50 rounded-lg shadow-sm p-4 lg:p-6 border border-gray-100 dark:border-gray-700 transition-all duration-300 hover:shadow-md hover:border-blue-200 dark:hover:border-blue-800 hover:scale-[1.02] hover:bg-white/80 dark:hover:bg-gray-800/80"
+          >
+            <div className="mb-4">
+              <div className="inline-block">
+                <h2 className="text-lg lg:text-xl font-semibold truncate bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
+                  {conversation.title}
+                </h2>
+                <div className="mt-1 h-0.5 w-full bg-gradient-to-r from-blue-500 to-blue-500/0"></div>
               </div>
             </div>
-          ))}
-        </div>
+            
+            <div className="space-y-4 w-full min-h-[250px]">
+              {/* Special padding for highlight example */}
+              {convIndex === 1 && <div className="h-4"></div>}
+              
+              {conversation.messages.map((message, index) => (
+                <div key={`message-${convIndex}-${index}`} className="px-0.5 w-full">
+                  {message.isUser ? (
+                    <div className="flex justify-end w-full">
+                      <div className="bg-[#4B7BF5] text-white px-3 py-2 rounded-lg max-w-[85%] text-sm break-words">
+                        {message.contents[0].content as string}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-gray-800 dark:text-gray-200 text-sm w-full">
+                      {message.contents.map((content, contentIndex) => (
+                        content.type === 'text' ? (
+                          <div key={`text-${contentIndex}`} className="prose dark:prose-invert max-w-none w-full">
+                            {typeof content.content === 'string' && content.content.includes('<TutorialHighlight>') ? (
+                              <div className="break-words">
+                                {processContent(content.content)}
+                              </div>
+                            ) : (
+                              <MarkdownMessage 
+                                content={typeof content.content === 'string' ? content.content : JSON.stringify(content.content)}
+                                className="break-words"
+                              />
+                            )}
+                          </div>
+                        ) : (
+                          <div key={`rich-${contentIndex}`} className="transform scale-90 origin-left w-full overflow-hidden">
+                            <RichContent
+                              content={content}
+                              isUser={false}
+                              onFlightSelect={() => {}}
+                              onHotelSelect={() => {}}
+                              selections={[]}
+                              hideOtherFlights={true}
+                            />
+                          </div>
+                        )
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* Progress Indicators */}
-      <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex justify-center gap-1.5">
-        {tutorialMessages.map((_, idx) => (
-          <button
-            key={`indicator-${idx}`}
-            onClick={() => setCurrentIndex(idx)}
-            className={`h-1.5 rounded-full transition-all ${
-              idx === currentIndex 
-                ? 'bg-blue-600 w-4' 
-                : 'bg-gray-300 dark:bg-gray-700 w-1.5'
-            }`}
-          />
+      {/* Mobile Scrollable Layout - hidden on desktop */}
+      <div className="md:hidden space-y-8">
+        {tutorialMessages.map((conversation, convIndex) => (
+          <div 
+            key={convIndex}
+            className="w-full overflow-hidden bg-white/50 dark:bg-gray-800/50 rounded-lg shadow-sm p-4 border border-gray-100 dark:border-gray-700 transition-all duration-300 active:scale-[0.99] active:bg-white/80 dark:active:bg-gray-800/80"
+          >
+            <div className="mb-3">
+              <div className="inline-block">
+                <h2 className="text-base sm:text-lg font-semibold truncate bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
+                  {conversation.title}
+                </h2>
+                <div className="mt-1 h-0.5 w-full bg-gradient-to-r from-blue-500 to-blue-500/0"></div>
+              </div>
+            </div>
+            
+            <div className="space-y-3 w-full">
+              {convIndex === 1 && <div className="h-4"></div>}
+              
+              {conversation.messages.map((message, index) => (
+                <div key={`message-${convIndex}-${index}`} className="px-0.5 w-full">
+                  {message.isUser ? (
+                    <div className="flex justify-end w-full">
+                      <div className="bg-[#4B7BF5] text-white px-3 py-2 rounded-lg max-w-[85%] text-sm break-words">
+                        {message.contents[0].content as string}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-gray-800 dark:text-gray-200 text-sm w-full">
+                      {message.contents.map((content, contentIndex) => (
+                        content.type === 'text' ? (
+                          <div key={`text-${contentIndex}`} className="prose dark:prose-invert max-w-none w-full">
+                            {typeof content.content === 'string' && content.content.includes('<TutorialHighlight>') ? (
+                              <div className="break-words">
+                                {processContent(content.content)}
+                              </div>
+                            ) : (
+                              <MarkdownMessage 
+                                content={typeof content.content === 'string' ? content.content : JSON.stringify(content.content)}
+                                className="break-words"
+                              />
+                            )}
+                          </div>
+                        ) : (
+                          <div key={`rich-${contentIndex}`} className="transform scale-90 origin-left w-full overflow-hidden">
+                            <RichContent
+                              content={content}
+                              isUser={false}
+                              onFlightSelect={() => {}}
+                              onHotelSelect={() => {}}
+                              selections={[]}
+                              hideOtherFlights={true}
+                            />
+                          </div>
+                        )
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
     </div>
