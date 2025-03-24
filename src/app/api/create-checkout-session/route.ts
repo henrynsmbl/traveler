@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
+import { stripe } from '@/lib/stripe/stripe';
 import Stripe from 'stripe';
 
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error('STRIPE_SECRET_KEY is not defined');
 }
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: '2025-01-27.acacia',
   timeout: 30000,
 });
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
     console.log('Creating checkout session with:', { price_id, userId, email });
 
     console.log('Stripe configuration:', {
-      apiVersion: stripe.getClientUserAgent ? 'Using client version' : 'API version in config',
+      apiVersion: stripe.getApiVersion ? stripe.getApiVersion() : 'API version in config',
       keyType: process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_') ? 'live' : 'test',
     });
 
@@ -47,25 +48,25 @@ export async function POST(request: Request) {
 
     // Create or get customer
     let customer;
-    const customers = await stripe.customers.list({ email });
+    const customers = await stripeInstance.customers.list({ email });
     
     if (customers.data.length > 0) {
       customer = customers.data[0];
       // Update metadata if needed
       if (!customer.metadata.userId) {
-        await stripe.customers.update(customer.id, {
+        await stripeInstance.customers.update(customer.id, {
           metadata: { userId }
         });
       }
     } else {
-      customer = await stripe.customers.create({
+      customer = await stripeInstance.customers.create({
         email,
         metadata: { userId }
       });
     }
 
     // Create checkout session
-    const session = await stripe.checkout.sessions.create({
+    const session = await stripeInstance.checkout.sessions.create({
       customer: customer.id,
       mode: 'subscription',
       payment_method_types: ['card'],
