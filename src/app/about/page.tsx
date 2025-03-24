@@ -19,13 +19,14 @@ const steps = [
   }
 ];
 
-const files = ["citysketch1.png", "citysketch2.png", "mountainsketch1.png", "mountainsketch2.png", "beachsketch1.png", "beachsketch2.png"]
+const files = ["citysketch1.png", "citysketch2.png", "citysketch3.png", "citysketch4.png", "mountainsketch1.png", "mountainsketch2.png", "mountainsketch3.png", "mountainsketch4.png", "beachsketch1.png", "beachsketch2.png", "beachsketch3.png", "beachsketch4.png"]
 
 const useStaticBackground = () => {
   const [isLoading, setIsLoading] = useState(true);
   
-  // Use the first image as the static background
-  const staticBackground = `/backgrounds/${encodeURIComponent(files[0])}`;
+  // Select a random image from the files array
+  const randomIndex = Math.floor(Math.random() * files.length);
+  const staticBackground = `/backgrounds/${encodeURIComponent(files[randomIndex])}`;
 
   // Preload the image when component mounts
   useEffect(() => {
@@ -44,7 +45,7 @@ const useStaticBackground = () => {
     };
 
     preloadImage();
-  }, []);
+  }, [staticBackground]);
 
   return staticBackground;
 };
