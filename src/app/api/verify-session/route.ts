@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/stripe';
 import { db } from '@/lib/firebase/config';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { auth } from '@/lib/firebase/config';
+import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 
 export async function POST(request: Request) {
   try {
@@ -49,17 +48,9 @@ export async function POST(request: Request) {
 
     // Update the user's subscription in Firebase
     const userRef = doc(db, 'users', userId);
-    const userDoc = await getDoc(userRef);
     
-    if (!userDoc.exists()) {
-      return NextResponse.json(
-        { error: 'User not found in database' },
-        { status: 404 }
-      );
-    }
-
-    // Update the user document with subscription details
-    await updateDoc(userRef, {
+    // First update just the subscription object to comply with your rules
+    await setDoc(userRef, {
       subscription: {
         status: subscription.status,
         plan: subscription.items.data[0].price.id,
@@ -68,14 +59,10 @@ export async function POST(request: Request) {
         subscriptionId: subscription.id,
         createdAt: subscription.created,
         updatedAt: Date.now()
-      },
-      subscriptionStatus: subscription.status,
-      subscriptionTier: 'ultimate',
-      stripeCustomerId: session.customer,
-      stripeSubscriptionId: subscription.id,
-      subscriptionStartDate: new Date(subscription.created * 1000).toISOString(),
-      subscriptionEndDate: new Date(subscription.current_period_end * 1000).toISOString(),
-    });
+      }
+    }, { merge: true });
+    
+    console.log(`Successfully updated subscription for user ${userId}`);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

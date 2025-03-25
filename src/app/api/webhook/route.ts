@@ -1,6 +1,6 @@
 import { stripe } from '@/lib/stripe/stripe';
 import { db } from '@/lib/firebase/config';
-import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, query, where, getDocs, setDoc } from 'firebase/firestore';
 import Stripe from 'stripe';
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
@@ -16,9 +16,12 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    console.log("Webhook POST request received");
     const body = await request.text();
-    const signature = request.headers.get('stripe-signature')!;
-    console.log('Webhook received:', { signature });
+    console.log("Request body length:", body.length);
+    
+    const signature = request.headers.get('stripe-signature');
+    console.log('Webhook signature:', signature);
 
     if (!webhookSecret) {
       throw new Error('Missing STRIPE_WEBHOOK_SECRET');
@@ -70,13 +73,17 @@ export async function POST(request: Request) {
             
             // Update user in database
             const userRef = doc(db, 'users', userId);
-            await updateDoc(userRef, {
-              stripeCustomerId: customerId,
-              stripeSubscriptionId: subscriptionId,
-              subscriptionStatus: 'active',
-              subscriptionTier: 'ultimate', // Adjust based on your tiers
-              subscriptionStartDate: new Date().toISOString(),
-            });
+            await setDoc(userRef, {
+              subscription: {
+                status: 'active',
+                plan: 'ultimate', // You might want to get this from the session
+                currentPeriodEnd: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60, // 30 days from now
+                customerId: customerId,
+                subscriptionId: subscriptionId,
+                createdAt: Math.floor(Date.now() / 1000),
+                updatedAt: Math.floor(Date.now() / 1000)
+              }
+            }, { merge: true });
             
             console.log(`User ${userId} subscription activated`);
           }
@@ -125,13 +132,16 @@ export async function POST(request: Request) {
             subscriptionData
           });
 
-          await updateUserSubscription(userId, subscriptionData);
-          console.log('Successfully updated subscription in Firebase');
-
-          // Verify the update
           const userRef = doc(db, 'users', userId);
-          const updatedDoc = await getDoc(userRef);
-          console.log('Verified Firebase update:', updatedDoc.data());
+          try {
+            await setDoc(userRef, {
+              subscription: subscriptionData
+            }, { merge: true });
+            console.log("Firebase update successful");
+          } catch (dbError) {
+            console.error("Firebase update failed:", dbError);
+            // Continue processing - don't let DB errors fail the webhook
+          }
           break;
         }
         
@@ -155,10 +165,12 @@ export async function POST(request: Request) {
             const userId = userDoc.id;
             
             // Update subscription status
-            await updateDoc(doc(db, 'users', userId), {
-              subscriptionStatus: 'canceled',
-              subscriptionEndDate: new Date().toISOString(),
-            });
+            await setDoc(doc(db, 'users', userId), {
+              subscription: {
+                status: 'canceled',
+                updatedAt: Math.floor(Date.now() / 1000)
+              }
+            }, { merge: true });
             
             console.log(`User subscription canceled: ${userId}`);
           } else {
