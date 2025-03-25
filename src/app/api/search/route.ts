@@ -77,13 +77,22 @@ export async function POST(request: Request) {
     }
 
     // Get API key from environment variable
-    const apiKey = process.env.API_GATEWAY_KEY || "";
+    const apiKey = process.env.API_GATEWAY_KEY;
+
+    // Check if API key exists
+    if (!apiKey) {
+      console.error('API key is missing');
+      return NextResponse.json(
+        { error: 'Server configuration error' },
+        { status: 500 }
+      );
+    }
 
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'//,
-        //'x-api-key': apiKey, // Add API key for authorization
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey // Uncommented and using the environment variable
       },
       body: JSON.stringify({ body: JSON.stringify(payload) })
     })
