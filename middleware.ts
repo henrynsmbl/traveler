@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server'
 export function middleware(request: NextRequest) {
   // Add this to skip middleware for webhook requests
   if (request.nextUrl.pathname.startsWith('/api/webhook')) {
-    return;
+    return NextResponse.next();
   }
 
   // Only add CORS headers to OPTIONS requests

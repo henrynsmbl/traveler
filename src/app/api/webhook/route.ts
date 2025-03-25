@@ -254,8 +254,5 @@ export async function POST(request: Request) {
 }
 
 // This is important for Next.js to know not to parse the body
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';

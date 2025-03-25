@@ -1,74 +1,44 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/stripe';
-import Stripe from 'stripe';
-
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error('STRIPE_SECRET_KEY is not defined');
-}
-
-const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2025-01-27.acacia',
-  timeout: 30000,
-});
 
 export async function POST(request: Request) {
   try {
     const { price_id, userId, email } = await request.json();
-    
-    // Get base URL from the request
-    const baseUrl = request.headers.get('origin') || 'http://localhost:3000';
 
-    console.log('Creating checkout session with:', { price_id, userId, email });
+    if (!price_id || !userId || !email) {
+      return NextResponse.json(
+        { error: 'Missing required parameters' },
+        { status: 400 }
+      );
+    }
 
-    console.log('Stripe configuration:', {
-      apiVersion: '2025-01-27.acacia',
-      keyType: process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_') ? 'live' : 'test',
+    // Create a new customer or retrieve existing one
+    let customer;
+    const existingCustomers = await stripe.customers.list({
+      email: email,
+      limit: 1,
     });
 
-    if (!price_id) {
-      return NextResponse.json(
-        { error: 'Missing price_id' },
-        { status: 400 }
-      );
-    }
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'Missing userId' },
-        { status: 400 }
-      );
-    }
-
-    if (!email) {
-      return NextResponse.json(
-        { error: 'Missing email' },
-        { status: 400 }
-      );
-    }
-
-    // Create or get customer
-    let customer;
-    const customers = await stripeInstance.customers.list({ email });
-    
-    if (customers.data.length > 0) {
-      customer = customers.data[0];
+    if (existingCustomers.data.length > 0) {
+      customer = existingCustomers.data[0];
       // Update metadata if needed
       if (!customer.metadata.userId) {
-        await stripeInstance.customers.update(customer.id, {
-          metadata: { userId }
+        await stripe.customers.update(customer.id, {
+          metadata: { userId: userId },
         });
       }
     } else {
-      customer = await stripeInstance.customers.create({
-        email,
-        metadata: { userId }
+      // Create a new customer with metadata
+      customer = await stripe.customers.create({
+        email: email,
+        metadata: { userId: userId },
       });
     }
 
     // Create checkout session
-    const session = await stripeInstance.checkout.sessions.create({
+    const session = await stripe.checkout.sessions.create({
       customer: customer.id,
-      mode: 'subscription',
+      client_reference_id: userId,
       payment_method_types: ['card'],
       line_items: [
         {
@@ -76,17 +46,19 @@ export async function POST(request: Request) {
           quantity: 1,
         },
       ],
-      success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/subscription`,
-      client_reference_id: userId,
+      mode: 'subscription',
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/subscription`,
     });
 
     return NextResponse.json({ url: session.url });
   } catch (error: any) {
-    console.error('Stripe API Error:', error.message);
+    console.error('Error creating checkout session:', error);
     return NextResponse.json(
       { error: error.message || 'Something went wrong' },
       { status: 500 }
     );
   }
 }
+
+export const dynamic = 'force-dynamic';
