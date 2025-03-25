@@ -2,8 +2,11 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
-  // Add this to skip middleware for webhook requests
-  if (request.nextUrl.pathname.startsWith('/api/webhook')) {
+  // Skip middleware for webhook routes (with or without trailing slash)
+  if (
+    request.nextUrl.pathname === '/api/webhook' ||
+    request.nextUrl.pathname === '/api/webhook/'
+  ) {
     return NextResponse.next();
   }
 
@@ -27,5 +30,8 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: '/api/:path*',
+  matcher: [
+    // Exclude webhook paths and static assets
+    '/((?!api/webhook|_next/static|_next/image|favicon.ico).*)',
+  ],
 }

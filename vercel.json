@@ -4,13 +4,20 @@
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "rewrites": [
-    { "source": "/api/webhook", "destination": "/api/webhook" },
-    { "source": "/api/webhook/", "destination": "/api/webhook" }
+    { "source": "/api/webhook", "destination": "/api/webhook/" }
   ],
   "functions": {
     "src/app/api/webhook/route.ts": {
       "memory": 1024,
       "maxDuration": 60
     }
-  }
+  },
+  "headers": [
+    {
+      "source": "/api/webhook/",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    }
+  ]
 } 

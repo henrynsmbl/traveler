@@ -20,7 +20,8 @@ export async function POST(request: Request) {
     const body = await request.text();
     console.log("Request body length:", body.length);
     
-    const signature = request.headers.get('stripe-signature');
+    const headersList = headers();
+    const signature = headersList.get('stripe-signature');
     console.log('Webhook signature:', signature);
 
     if (!webhookSecret) {
@@ -157,7 +158,7 @@ export async function POST(request: Request) {
           
           // Find user by customer ID
           const usersRef = collection(db, 'users');
-          const q = query(usersRef, where('stripeCustomerId', '==', customerId));
+          const q = query(usersRef, where('subscription.customerId', '==', customerId));
           const querySnapshot = await getDocs(q);
           
           if (!querySnapshot.empty) {
@@ -190,7 +191,7 @@ export async function POST(request: Request) {
             
             // Find user by customer ID
             const usersRef = collection(db, 'users');
-            const q = query(usersRef, where('stripeCustomerId', '==', customerId));
+            const q = query(usersRef, where('subscription.customerId', '==', customerId));
             const querySnapshot = await getDocs(q);
             
             if (!querySnapshot.empty) {
@@ -220,7 +221,7 @@ export async function POST(request: Request) {
             
             // Find user by customer ID
             const usersRef = collection(db, 'users');
-            const q = query(usersRef, where('stripeCustomerId', '==', customerId));
+            const q = query(usersRef, where('subscription.customerId', '==', customerId));
             const querySnapshot = await getDocs(q);
             
             if (!querySnapshot.empty) {
@@ -272,5 +273,11 @@ export async function POST(request: Request) {
 }
 
 // This is important for Next.js to know not to parse the body
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
