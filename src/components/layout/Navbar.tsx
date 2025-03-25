@@ -118,7 +118,10 @@ const Navbar: React.FC<NavbarProps> = ({
                     className="group relative"
                   >
                     <div
-                      onClick={() => onSessionSelect(session.id)}
+                      onClick={() => {
+                        onSessionSelect(session.id);
+                        setIsSidebarOpen(false);
+                      }}
                       className={`w-full text-left p-3 rounded-lg transition-colors duration-200 cursor-pointer
                         ${currentSessionId === session.id 
                           ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 shadow-sm' 
