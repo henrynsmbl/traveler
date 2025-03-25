@@ -78,6 +78,7 @@ export async function POST(request: Request) {
       ],
       success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/subscription`,
+      client_reference_id: userId,
     });
 
     return NextResponse.json({ url: session.url });
