@@ -8,6 +8,12 @@ import { updateUserSubscription } from '@/lib/firebase/subscription';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
+export async function GET() {
+  return new Response('Webhook endpoint is working. Please use POST requests for webhooks.', {
+    status: 200,
+  });
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.text();
