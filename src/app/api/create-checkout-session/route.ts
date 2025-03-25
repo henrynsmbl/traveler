@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/stripe';
+import Stripe from 'stripe';
+
+const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
+  apiVersion: '2025-01-27.acacia',
+});
 
 export async function POST(request: Request) {
   try {
@@ -14,7 +19,7 @@ export async function POST(request: Request) {
 
     // Create a new customer or retrieve existing one
     let customer;
-    const existingCustomers = await stripe.customers.list({
+    const existingCustomers = await stripeInstance.customers.list({
       email: email,
       limit: 1,
     });
@@ -23,20 +28,20 @@ export async function POST(request: Request) {
       customer = existingCustomers.data[0];
       // Update metadata if needed
       if (!customer.metadata.userId) {
-        await stripe.customers.update(customer.id, {
+        await stripeInstance.customers.update(customer.id, {
           metadata: { userId: userId },
         });
       }
     } else {
       // Create a new customer with metadata
-      customer = await stripe.customers.create({
+      customer = await stripeInstance.customers.create({
         email: email,
         metadata: { userId: userId },
       });
     }
 
     // Create checkout session
-    const session = await stripe.checkout.sessions.create({
+    const session = await stripeInstance.checkout.sessions.create({
       customer: customer.id,
       client_reference_id: userId,
       payment_method_types: ['card'],

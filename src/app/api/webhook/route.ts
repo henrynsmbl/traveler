@@ -1,4 +1,3 @@
-import { stripe } from '@/lib/stripe/stripe';
 import { db } from '@/lib/firebase/config';
 import { doc, getDoc, updateDoc, collection, query, where, getDocs, setDoc } from 'firebase/firestore';
 import Stripe from 'stripe';
@@ -6,7 +5,11 @@ import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { updateUserSubscription } from '@/lib/firebase/subscription';
 
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
+  apiVersion: '2025-01-27.acacia',
+});
+
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
 
 export async function GET() {
   return new Response('Webhook endpoint is working. Please use POST requests for webhooks.', {
@@ -20,7 +23,7 @@ export async function POST(request: Request) {
     const body = await request.text();
     console.log("Request body length:", body.length);
     
-    const headersList = headers();
+    const headersList = await headers();
     const signature = headersList.get('stripe-signature');
     console.log('Webhook signature:', signature);
 
