@@ -1,33 +1,68 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { signInWithGoogle, signInWithEmail, createAccountWithEmail } from '@/lib/firebase/auth';
+import { signInWithGoogle, signInWithEmail, createAccountWithEmail, resendVerificationEmail, sendPasswordResetEmail } from '@/lib/firebase/auth';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthContext';
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 import Link from 'next/link';
+import { getAuth } from 'firebase/auth';
 
 export default function SignInPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isRegistering, setIsRegistering] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
+    const [verificationSent, setVerificationSent] = useState(false);
+    const [currentUser, setCurrentUser] = useState<any>(null);
+    const [resetEmailSent, setResetEmailSent] = useState(false);
     const router = useRouter();
     const { user } = useAuth();
+    const auth = getAuth();
 
     useEffect(() => {
-        if (user) {
+        // If user exists and is verified, redirect to home
+        if (user && user.emailVerified) {
             router.push('/');
+        } 
+        // If user exists but is not verified, show verification message
+        else if (user && !user.emailVerified) {
+            setCurrentUser(user);
+            setErrorMessage('Please verify your email before signing in');
         }
     }, [user, router]);
 
-    if (user) {
+    // Add a new useEffect to check for verification status changes
+    useEffect(() => {
+        if (!user) return;
+        
+        // Set up an interval to check if the user's email has been verified
+        const checkVerificationStatus = setInterval(() => {
+            if (user) {
+                user.reload().then(() => {
+                    if (user.emailVerified) {
+                        clearInterval(checkVerificationStatus);
+                        router.push('/');
+                    }
+                }).catch(error => {
+                    console.error("Error checking verification status:", error);
+                });
+            }
+        }, 3000); // Check every 3 seconds
+        
+        // Clean up the interval when component unmounts
+        return () => clearInterval(checkVerificationStatus);
+    }, [user, router]);
+
+    if (user && user.emailVerified) {
         return <div />;
     }
 
     const handleGoogleSignIn = async () => {
         try {
             setIsLoading(true);
+            setErrorMessage('');
             await signInWithGoogle();
         } catch (error) {
             console.error('Google sign in error:', error);
@@ -40,13 +75,77 @@ export default function SignInPage() {
         e.preventDefault();
         try {
             setIsLoading(true);
+            setErrorMessage('');
+            setVerificationSent(false);
+            
             if (isRegistering) {
-                await createAccountWithEmail(email, password);
+                const result = await createAccountWithEmail(email, password);
+                setCurrentUser(result.user);
+                setVerificationSent(true);
             } else {
                 await signInWithEmail(email, password);
             }
+        } catch (error: any) {
+            // Silently handle the error - no console.error here
+            // Extract and display user-friendly error message
+            if (error.code === 'auth/wrong-password' || 
+                error.code === 'auth/user-not-found' || 
+                error.code === 'auth/invalid-credential') {
+                setErrorMessage('Invalid email or password');
+            } else if (error.code === 'auth/email-already-in-use') {
+                setErrorMessage('Email already in use');
+            } else if (error.code === 'auth/weak-password') {
+                setErrorMessage('Password is too weak');
+            } else if (error.code === 'auth/invalid-email') {
+                setErrorMessage('Invalid email format');
+            } else if (error.code === 'auth/email-not-verified') {
+                setErrorMessage('Please verify your email before signing in');
+                // Try to get the current user to allow resending verification
+                const currentUser = auth.currentUser;
+                if (currentUser) {
+                    setCurrentUser(currentUser);
+                }
+            } else {
+                setErrorMessage('An error occurred. Please try again.');
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleResendVerification = async () => {
+        try {
+            setIsLoading(true);
+            if (currentUser) {
+                await resendVerificationEmail(currentUser);
+                setVerificationSent(true);
+            }
         } catch (error) {
-            console.error('Authentication error:', error);
+            setErrorMessage('Failed to resend verification email. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handlePasswordReset = async () => {
+        if (!email) {
+            setErrorMessage('Please enter your email address to reset your password');
+            return;
+        }
+        
+        try {
+            setIsLoading(true);
+            setErrorMessage('');
+            await sendPasswordResetEmail(email);
+            setResetEmailSent(true);
+        } catch (error: any) {
+            if (error.code === 'auth/user-not-found') {
+                setErrorMessage('No account found with this email address');
+            } else if (error.code === 'auth/invalid-email') {
+                setErrorMessage('Invalid email format');
+            } else {
+                setErrorMessage('Failed to send password reset email. Please try again.');
+            }
         } finally {
             setIsLoading(false);
         }
@@ -64,6 +163,48 @@ export default function SignInPage() {
                     </div>
 
                     <div className="relative rounded-3xl backdrop-blur-lg p-8 bg-white/80 dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700 shadow-xl">
+                        {verificationSent && (
+                            <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 text-sm">
+                                <p className="flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                    </svg>
+                                    Verification email sent! Please check your inbox and verify your email before signing in.
+                                </p>
+                            </div>
+                        )}
+                        
+                        {resetEmailSent && (
+                            <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 text-sm">
+                                <p className="flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                    </svg>
+                                    Password reset email sent! Please check your inbox for instructions.
+                                </p>
+                            </div>
+                        )}
+                        
+                        {errorMessage && !verificationSent && !resetEmailSent && (
+                            <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm">
+                                <p className="flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                    </svg>
+                                    {errorMessage}
+                                    {errorMessage === 'Please verify your email before signing in' && (
+                                        <button 
+                                            onClick={handleResendVerification}
+                                            className="ml-2 text-blue-600 dark:text-blue-400 hover:underline"
+                                            disabled={isLoading}
+                                        >
+                                            Resend verification
+                                        </button>
+                                    )}
+                                </p>
+                            </div>
+                        )}
+                        
                         <form onSubmit={handleSubmit} className="space-y-6">
                             <div className="space-y-4">
                                 <div>
@@ -110,16 +251,32 @@ export default function SignInPage() {
                                 </button>
                             </div>
 
-                            <div className="text-sm text-center">
+                            <div className="flex flex-col text-sm">
                                 <button
                                     type="button"
-                                    onClick={() => setIsRegistering(!isRegistering)}
-                                    className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
+                                    onClick={() => {
+                                        setIsRegistering(!isRegistering);
+                                        setErrorMessage('');
+                                        setVerificationSent(false);
+                                        setResetEmailSent(false);
+                                    }}
+                                    className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 mb-2"
                                 >
                                     {isRegistering 
                                         ? 'Already have an account? Sign in' 
                                         : "Don't have an account? Register"}
                                 </button>
+                                
+                                {!isRegistering && (
+                                    <button
+                                        type="button"
+                                        onClick={handlePasswordReset}
+                                        disabled={isLoading}
+                                        className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
+                                    >
+                                        Forgot password?
+                                    </button>
+                                )}
                             </div>
                         </form>
 

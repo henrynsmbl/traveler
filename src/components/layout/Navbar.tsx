@@ -5,6 +5,7 @@ import { UserMenu } from '../auth/UserMenu';
 import { AuthButton } from '../auth/AuthButton';
 import { useAuth } from '../auth/AuthContext';
 import type { ChatSession } from '@/types/chat';
+import { usePathname } from 'next/navigation';
 
 interface NavbarProps {
   isSidebarOpen: boolean;
@@ -41,6 +42,8 @@ const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { user } = useAuth();
   const sidebarRef = React.useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+  const isSignInPage = pathname === '/signin';
 
   // Handle clicks outside
   React.useEffect(() => {
@@ -92,7 +95,7 @@ const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           <div className="w-[64px] flex justify-end flex-none z-[60]">
-            {user ? <UserMenu /> : <AuthButton />}
+            {user ? <UserMenu /> : (!isSignInPage && <AuthButton />)}
           </div>
         </div>
       </nav>

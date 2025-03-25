@@ -18,13 +18,14 @@ const getPlanName = (priceId: string) => {
   const plans: { [key: string]: string } = {
     'price_1Qo8FQIzmoU5zafN1BNi81Im': 'Pro Plan',
   };
-  return plans[priceId] || 'Custom Plan';
+  return plans[priceId] || 'No Plan';
 };
 
 const AccountPage: React.FC = () => {
   const { user } = useAuth();
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadSubscription() {
@@ -46,9 +47,13 @@ const AccountPage: React.FC = () => {
   const handleManageSubscription = async () => {
     try {
       if (!subscription?.customerId) {
-        throw new Error('Missing customerId');
+        setErrorMessage("You don't have an active subscription. Please subscribe to a plan first.");
+        return;
       }
 
+      // Clear any previous error messages
+      setErrorMessage(null);
+      
       const customerId = subscription.customerId;
       console.log('Customer ID being used:', customerId);
       console.log('Stripe mode:', process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_') ? 'live' : 'test');
@@ -77,6 +82,7 @@ const AccountPage: React.FC = () => {
       window.location.href = url;
     } catch (error) {
       console.error('Error creating portal session:', error);
+      setErrorMessage("An error occurred while trying to manage your subscription.");
     }
   };
 
@@ -150,7 +156,7 @@ const AccountPage: React.FC = () => {
                       subscription.status === 'active' ? 'bg-green-500' : 'bg-red-500'
                     }`}></div>
                     <span className="text-xl font-medium bg-gradient-to-r from-blue-600 to-purple-500 inline-block text-transparent bg-clip-text">
-                      {getPlanName(subscription.plan)}
+                      {subscription.plan ? getPlanName(subscription.plan) : 'No Plan'}
                     </span>
                   </div>
 
@@ -180,6 +186,12 @@ const AccountPage: React.FC = () => {
                       <span>Manage Subscription</span>
                     </button>
                   </div>
+                  
+                  {errorMessage && (
+                    <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm text-center">
+                      {errorMessage}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center space-y-6">
@@ -190,6 +202,12 @@ const AccountPage: React.FC = () => {
                   >
                     View Plans
                   </Link>
+                  
+                  {errorMessage && (
+                    <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
+                      {errorMessage}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

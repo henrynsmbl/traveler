@@ -8,7 +8,9 @@ import {
   UserCredential,
   User,
   getAuth,
-  signInWithRedirect
+  signInWithRedirect,
+  sendEmailVerification,
+  sendPasswordResetEmail as sendPasswordReset 
 } from 'firebase/auth';
 import { auth } from './config';
 import { useState, useEffect } from 'react';
@@ -113,12 +115,16 @@ export const createAccountWithEmail = async (email: string, password: string) =>
         email: userCredential.user.email,
         createdAt: new Date(),
         lastActive: new Date(),
+        emailVerified: false,
         selections: [],
         hotelDates: {},
         subscription: {
           status: 'inactive'
         }
       });
+      
+      // Send verification email
+      await sendEmailVerification(userCredential.user);
       
       return userCredential;
     }
@@ -128,12 +134,18 @@ export const createAccountWithEmail = async (email: string, password: string) =>
   }
 };
 
-export const signInWithEmail = async (email: string, password: string): Promise<User> => {
+export const signInWithEmail = async (email: string, password: string): Promise<User | null> => {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    
+    // Check if email is verified
+    if (!userCredential.user.emailVerified) {
+      throw { code: 'auth/email-not-verified', message: 'Please verify your email before signing in.' };
+    }
+    
     return userCredential.user;
   } catch (error) {
-    console.error('Error signing in with email:', error);
+    console.warn('Sign in error (handled):', error);
     throw error;
   }
 };
@@ -151,10 +163,52 @@ export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   
   useEffect(() => {
-    return onAuthStateChanged(auth, (user) => {
-      setUser(user);
+    // This will reload the user to get the latest emailVerified status
+    const reloadUser = async (currentUser: User) => {
+      try {
+        await currentUser.reload();
+        setUser({ ...currentUser });
+      } catch (error) {
+        console.warn('Error reloading user:', error);
+      }
+    };
+
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (currentUser) {
+        // Reload user to get fresh emailVerified status
+        reloadUser(currentUser);
+        
+        // Set up a periodic check for email verification
+        const checkVerificationInterval = setInterval(() => {
+          reloadUser(currentUser);
+        }, 10000); // Check every 10 seconds
+        
+        return () => {
+          clearInterval(checkVerificationInterval);
+          unsubscribe();
+        };
+      } else {
+        setUser(null);
+      }
     });
+    
+    return unsubscribe;
   }, []);
 
   return { user };
+};
+
+// Add a function to resend verification email
+export const resendVerificationEmail = async (user: User): Promise<void> => {
+  try {
+    await sendEmailVerification(user);
+  } catch (error) {
+    console.error('Error sending verification email:', error);
+    throw error;
+  }
+};
+
+export const sendPasswordResetEmail = async (email: string) => {
+  const auth = getAuth();
+  await sendPasswordReset(auth, email);
 };

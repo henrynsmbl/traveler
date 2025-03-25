@@ -204,7 +204,7 @@ export default function SubscriptionPage() {
 
             {/* Enterprise Note */}
             <div className="text-center mt-4 md:mt-8 text-gray-500 dark:text-gray-400 py-4 px-4 max-w-xl mx-auto mb-8">
-              Contact <a href="mailto:henry@aitinerary.world" className="text-blue-500 hover:text-blue-600 font-medium">henry@aitinerary.world</a> any questions.
+              Contact <a href="mailto:henry@aitinerary.world" className="text-blue-500 hover:text-blue-600 font-medium">henry@aitinerary.world</a> with any questions.
             </div>
 
             {/* Footer links integrated */}

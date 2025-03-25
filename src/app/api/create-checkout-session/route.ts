@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     console.log('Creating checkout session with:', { price_id, userId, email });
 
     console.log('Stripe configuration:', {
-      apiVersion: stripe.getApiVersion ? stripe.getApiVersion() : 'API version in config',
+      apiVersion: '2025-01-27.acacia',
       keyType: process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_') ? 'live' : 'test',
     });
 
