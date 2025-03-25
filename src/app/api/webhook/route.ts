@@ -19,6 +19,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    console.log("Webhook received at:", new Date().toISOString());
+    console.log("Request URL:", request.url);
     console.log("Webhook POST request received");
     const body = await request.text();
     console.log("Request body length:", body.length);
