@@ -1,6 +1,6 @@
 import { stripe } from '@/lib/stripe/stripe';
 import { db } from '@/lib/firebase/config';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import Stripe from 'stripe';
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
@@ -43,66 +43,207 @@ export async function POST(request: Request) {
     // Log the full event for debugging
     console.log('Full event:', JSON.stringify(event, null, 2));
 
-    if (event.type === 'customer.subscription.created' || 
-        event.type === 'customer.subscription.updated') {
-      try {
-        const subscription = event.data.object as Stripe.Subscription;
-        const customerId = subscription.customer as string;
-        
-        console.log('Processing subscription:', {
-          subscriptionId: subscription.id,
-          customerId,
-          status: subscription.status,
-          priceId: subscription.items.data[0].price.id
-        });
-
-        const customer = await stripe.customers.retrieve(customerId);
-        console.log('Customer data:', JSON.stringify(customer, null, 2));
-        
-        if ('deleted' in customer) {
-          throw new Error('Customer was deleted');
+    // Handle different event types
+    try {
+      switch (event.type) {
+        // Checkout session completed
+        case 'checkout.session.completed': {
+          const session = event.data.object as Stripe.Checkout.Session;
+          
+          // Make sure we have the necessary data
+          if (session.client_reference_id && session.customer && session.subscription) {
+            const userId = session.client_reference_id;
+            const customerId = session.customer as string;
+            const subscriptionId = session.subscription as string;
+            
+            console.log('Checkout completed:', {
+              userId,
+              customerId,
+              subscriptionId
+            });
+            
+            // Update user in database
+            const userRef = doc(db, 'users', userId);
+            await updateDoc(userRef, {
+              stripeCustomerId: customerId,
+              stripeSubscriptionId: subscriptionId,
+              subscriptionStatus: 'active',
+              subscriptionTier: 'ultimate', // Adjust based on your tiers
+              subscriptionStartDate: new Date().toISOString(),
+            });
+            
+            console.log(`User ${userId} subscription activated`);
+          }
+          break;
         }
+        
+        // Subscription created or updated
+        case 'customer.subscription.created':
+        case 'customer.subscription.updated': {
+          const subscription = event.data.object as Stripe.Subscription;
+          const customerId = subscription.customer as string;
+          
+          console.log('Processing subscription:', {
+            subscriptionId: subscription.id,
+            customerId,
+            status: subscription.status,
+            priceId: subscription.items.data[0].price.id
+          });
 
-        const userId = customer.metadata.userId;
-        console.log('User ID from metadata:', userId);
+          const customer = await stripe.customers.retrieve(customerId);
+          console.log('Customer data:', JSON.stringify(customer, null, 2));
+          
+          if ('deleted' in customer) {
+            throw new Error('Customer was deleted');
+          }
 
-        if (!userId) {
-          throw new Error('No userId found in customer metadata');
+          const userId = customer.metadata.userId;
+          console.log('User ID from metadata:', userId);
+
+          if (!userId) {
+            throw new Error('No userId found in customer metadata');
+          }
+
+          const subscriptionData = {
+            status: subscription.status as 'active' | 'canceled' | 'past_due' | 'unpaid',
+            plan: subscription.items.data[0].price.id,
+            currentPeriodEnd: subscription.current_period_end,
+            customerId: customerId,
+            subscriptionId: subscription.id,
+            createdAt: subscription.created,
+            updatedAt: Date.now()
+          };
+
+          console.log('Attempting to update user subscription:', {
+            userId,
+            subscriptionData
+          });
+
+          await updateUserSubscription(userId, subscriptionData);
+          console.log('Successfully updated subscription in Firebase');
+
+          // Verify the update
+          const userRef = doc(db, 'users', userId);
+          const updatedDoc = await getDoc(userRef);
+          console.log('Verified Firebase update:', updatedDoc.data());
+          break;
         }
-
-        const subscriptionData = {
-          status: subscription.status as 'active' | 'canceled' | 'past_due' | 'unpaid',
-          plan: subscription.items.data[0].price.id,
-          currentPeriodEnd: subscription.current_period_end,
-          customerId: customerId,
-          subscriptionId: subscription.id,
-          createdAt: subscription.created,
-          updatedAt: Date.now()
-        };
-
-        console.log('Attempting to update user subscription:', {
-          userId,
-          subscriptionData
-        });
-
-        await updateUserSubscription(userId, subscriptionData);
-        console.log('Successfully updated subscription in Firebase');
-
-        // Verify the update
-        const userRef = doc(db, 'users', userId);
-        const updatedDoc = await getDoc(userRef);
-        console.log('Verified Firebase update:', updatedDoc.data());
-
-      } catch (error: any) {
-        console.error('Error processing subscription:', error.message, error.stack);
-        return NextResponse.json(
-          { error: `Subscription processing error: ${error.message}` },
-          { status: 400 }
-        );
+        
+        // Subscription deleted/canceled
+        case 'customer.subscription.deleted': {
+          const subscription = event.data.object as Stripe.Subscription;
+          const customerId = subscription.customer as string;
+          
+          console.log('Subscription canceled:', {
+            subscriptionId: subscription.id,
+            customerId
+          });
+          
+          // Find user by customer ID
+          const usersRef = collection(db, 'users');
+          const q = query(usersRef, where('stripeCustomerId', '==', customerId));
+          const querySnapshot = await getDocs(q);
+          
+          if (!querySnapshot.empty) {
+            const userDoc = querySnapshot.docs[0];
+            const userId = userDoc.id;
+            
+            // Update subscription status
+            await updateDoc(doc(db, 'users', userId), {
+              subscriptionStatus: 'canceled',
+              subscriptionEndDate: new Date().toISOString(),
+            });
+            
+            console.log(`User subscription canceled: ${userId}`);
+          } else {
+            console.log(`No user found with customer ID: ${customerId}`);
+          }
+          break;
+        }
+        
+        // Invoice payment succeeded
+        case 'invoice.payment_succeeded': {
+          const invoice = event.data.object as Stripe.Invoice;
+          if (invoice.subscription && invoice.customer) {
+            const subscriptionId = invoice.subscription as string;
+            const customerId = invoice.customer as string;
+            
+            console.log(`Payment succeeded for subscription: ${subscriptionId}`);
+            
+            // Find user by customer ID
+            const usersRef = collection(db, 'users');
+            const q = query(usersRef, where('stripeCustomerId', '==', customerId));
+            const querySnapshot = await getDocs(q);
+            
+            if (!querySnapshot.empty) {
+              const userDoc = querySnapshot.docs[0];
+              const userId = userDoc.id;
+              
+              // Update last payment date
+              await updateDoc(doc(db, 'users', userId), {
+                lastPaymentDate: new Date().toISOString(),
+                paymentStatus: 'succeeded'
+              });
+              
+              console.log(`Updated payment status for user: ${userId}`);
+            }
+          }
+          break;
+        }
+        
+        // Invoice payment failed
+        case 'invoice.payment_failed': {
+          const invoice = event.data.object as Stripe.Invoice;
+          if (invoice.subscription && invoice.customer) {
+            const subscriptionId = invoice.subscription as string;
+            const customerId = invoice.customer as string;
+            
+            console.log(`Payment failed for subscription: ${subscriptionId}`);
+            
+            // Find user by customer ID
+            const usersRef = collection(db, 'users');
+            const q = query(usersRef, where('stripeCustomerId', '==', customerId));
+            const querySnapshot = await getDocs(q);
+            
+            if (!querySnapshot.empty) {
+              const userDoc = querySnapshot.docs[0];
+              const userId = userDoc.id;
+              
+              // Update payment status
+              await updateDoc(doc(db, 'users', userId), {
+                paymentStatus: 'failed',
+                paymentFailedDate: new Date().toISOString()
+              });
+              
+              console.log(`Updated payment failure for user: ${userId}`);
+              
+              // Here you could also implement logic to notify the user about the failed payment
+            }
+          }
+          break;
+        }
+        
+        // Customer created
+        case 'customer.created': {
+          const customer = event.data.object as Stripe.Customer;
+          console.log(`New customer created: ${customer.id}`);
+          // You might want to store this in your database or take other actions
+          break;
+        }
+        
+        // Default case for other events
+        default:
+          console.log(`Unhandled event type: ${event.type}`);
       }
+      
+      return NextResponse.json({ received: true });
+    } catch (error: any) {
+      console.error('Error processing webhook event:', error.message, error.stack);
+      return NextResponse.json(
+        { error: `Event processing error: ${error.message}` },
+        { status: 400 }
+      );
     }
-
-    return NextResponse.json({ received: true });
   } catch (error: any) {
     console.error('Webhook error:', error.message, error.stack);
     return NextResponse.json(
@@ -111,3 +252,10 @@ export async function POST(request: Request) {
     );
   }
 }
+
+// This is important for Next.js to know not to parse the body
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};

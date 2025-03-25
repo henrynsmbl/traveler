@@ -34,7 +34,10 @@ const pricingTiers: PricingTier[] = [
     ],
     priceId: {
       monthly: "price_1R59roIzmoU5zafNovVMqvVK",
-      yearly: "price_1R59roIzmoU5zafNJNxPLXN9"
+      yearly: "price_1R59roIzmoU5zafNJNxPLXN9",
+      // Test mode prices commented out
+      // monthly: "price_1R6cCnIzmoU5zafNi6o8v5lc",
+      // yearly: "price_1R6cEUIzmoU5zafNHT5F2x9V"
     }
   }
 ]
