@@ -103,12 +103,23 @@ async function searchAPI(prompt: string, history: Message[]): Promise<SearchAPIR
     const data = await response.json();
     console.log('API Response:', data);
     
+    // Check if the response is empty and provide a fallback
+    if (!data.contents?.[0]?.content || data.contents[0].content.trim() === "") {
+      console.warn('Empty response from API, using fallback');
+      return {
+        citations: [],
+        response: "I'm sorry, I couldn't generate a response at this time. Please try again or rephrase your question.",
+        flights: undefined,
+        hotels: undefined
+      };
+    }
+    
     // Extract the relevant fields from the response
     return {
       citations: data.contents?.[0]?.citations || [],
       response: data.contents?.[0]?.content || "",
-      flights: data.contents?.[0]?.flights || null,
-      hotels: data.contents?.[0]?.hotels || null
+      flights: data.contents?.[0]?.flights || undefined,
+      hotels: data.contents?.[0]?.hotels || undefined
     };
 
   } catch (error) {

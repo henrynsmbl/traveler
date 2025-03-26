@@ -51,68 +51,88 @@ def prompt_GPT(OPENAI_API_KEY, context, prompt):
   return requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload).json()['choices'][0]['message']['content']
 
 def prompt_perplexity(PERPLEXITY_API_KEY, context, prompt):
-  """
-  Function to generate perplexity responses from a prompt.
+    """
+    Function to generate perplexity responses from a prompt.
+    """
+    url = "https://api.perplexity.ai/chat/completions"
 
-  @PARAMS:
-    - PERPLEXITY_API_KEY -> api key to connect to perplexity
-    - context            -> what the LLM's role is for the prompting
-    - prompt             -> the input to ping the gpt model with
-  """
-  url = "https://api.perplexity.ai/chat/completions"
+    payload = {
+        "model": "sonar",
+        "messages": [
+            {
+                "role": "system",
+                "content": context
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        "max_tokens": 1000,  # Changed from string to int
+        "temperature": 0.2,
+        "top_p": 0.9,
+        # Removed search_domain_filter parameter
+        "return_images": False,
+        "return_related_questions": False,
+        "search_recency_filter": "month",
+        "top_k": 0,
+        "stream": False,
+        "presence_penalty": 0,
+        "frequency_penalty": 1
+    }
+    headers = {
+        "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
+        "Content-Type": "application/json"
+    }
 
-  payload = {
-      "model": "sonar",
-      "messages": [
-          {
-              "role": "system",
-              "content": context
-          },
-          {
-              "role": "user",
-              "content": prompt
-          }
-      ],
-      "max_tokens": "1000",
-      "temperature": 0.2,
-      "top_p": 0.9,
-      "search_domain_filter": ["perplexity.ai"],
-      "return_images": False,
-      "return_related_questions": False,
-      "search_recency_filter": "month",
-      "top_k": 0,
-      "stream": False,
-      "presence_penalty": 0,
-      "frequency_penalty": 1
-  }
-  headers = {
-      "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
-      "Content-Type": "application/json"
-  }
-
-  try:
-      response = requests.request("POST", url, json=payload, headers=headers).json()
-      
-      # extract citations and content, providing defaults if not found
-      citations = []
-      content = ""
-      
-      if 'choices' in response and len(response['choices']) > 0:
-          content = response['choices'][0]['message']['content']
-      
-      if 'citations' in response:
-          citations = response['citations']
-          
-      return {
-          "citations": citations,
-          "response": content
-      }
-  except Exception as e:
-      print(f"Error in Perplexity API call: {str(e)}")
-      return {
-          "citations": [],
-          "response": "I apologize, but I'm having trouble accessing the required information."
-      }
+    try:
+        print(f"Calling Perplexity API with prompt: {prompt}")
+        response_data = requests.request("POST", url, json=payload, headers=headers).json()
+        print(f"Perplexity API raw response: {response_data}")
+        
+        # Check for error in response
+        if 'error' in response_data:
+            print(f"Perplexity API error: {response_data['error']}")
+            # Fall back to GPT for this case
+            content = prompt_GPT(OPENAI_API_KEY, f"Answer this question about travel: {prompt}", "")
+            return {
+                "citations": [],
+                "response": content
+            }
+            
+        # Extract content from the response
+        content = ""
+        if 'choices' in response_data and len(response_data['choices']) > 0:
+            content = response_data['choices'][0]['message']['content']
+        
+        # If content is empty, use GPT as fallback
+        if not content or content.strip() == "":
+            content = prompt_GPT(OPENAI_API_KEY, f"Answer this question about travel: {prompt}", "")
+        
+        # Extract citations
+        citations = []
+        if 'citations' in response_data:
+            citations = response_data['citations']
+        
+        return {
+            "citations": citations,
+            "response": content
+        }
+    except Exception as e:
+        print(f"Error in Perplexity API call: {str(e)}")
+        # Fall back to GPT
+        try:
+            content = prompt_GPT(OPENAI_API_KEY, f"Answer this question about travel: {prompt}", "")
+            return {
+                "citations": [],
+                "response": content
+            }
+        except:
+            # Final fallback if GPT also fails
+            return {
+                "citations": [],
+                "response": "I'm sorry, I couldn't find information about that right now. Please try again later or rephrase your question."
+            }
     
 def get_search_results(params):
     """
@@ -533,9 +553,19 @@ def analyze_intent(OPENAI_API_KEY, PERPLEXITY_API_KEY, SERPAI_API_KEY, user_inpu
         # Process questions if they exist
         additional_info = {"response": "", "citations": []}
         if pattern.get('questions'):
+            print(f"Processing question: {pattern['questions']}")
             question_response = prompt_perplexity(PERPLEXITY_API_KEY, "Be accurate and to the point", pattern['questions'])
+            print(f"Question response: {question_response}")
+            
             if isinstance(question_response, dict):
                 additional_info = question_response
+            elif isinstance(question_response, str) and question_response.strip():
+                # Handle case where response is a string
+                additional_info = {"response": question_response, "citations": []}
+            
+            # Ensure we have a non-empty response
+            if not additional_info.get('response') or additional_info['response'].strip() == '':
+                additional_info['response'] = f"I couldn't find specific information about {pattern['questions']} Please try asking in a different way."
 
         # Combine budget notes into the response
         notes = pattern.get('notes', '')
