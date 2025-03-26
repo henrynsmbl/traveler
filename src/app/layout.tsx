@@ -1,6 +1,5 @@
 'use client';
 
-import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from '@/components/auth/AuthContext'
 import { ChatProvider } from '@/components/chat/ChatContext'
@@ -16,6 +15,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" href="/logo.svg" type="image/svg+xml" />
+      </head>
       <body className="antialiased">
         <Analytics />
         <SpeedInsights />
