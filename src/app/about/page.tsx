@@ -3,6 +3,7 @@
 import { TutorialChat } from '@/components/tutorial/TutorialChat'
 import { ChevronRight, MessageSquare, Palette, CalendarCheck } from 'lucide-react'
 import React, { Fragment, useEffect, useState } from 'react'
+import Image from 'next/image'
 
 const steps = [
   {
@@ -19,35 +20,44 @@ const steps = [
   }
 ];
 
-const files = ["citysketch1.png", "citysketch2.png", "citysketch3.png", "citysketch4.png", "mountainsketch1.png", "mountainsketch2.png", "mountainsketch3.png", "mountainsketch4.png", "beachsketch1.png", "beachsketch2.png", "beachsketch3.png", "beachsketch4.png"]
+// Function to check WebP support
+const useWebPSupport = () => {
+  const [supportsWebP, setSupportsWebP] = useState(false);
+  
+  useEffect(() => {
+    const checkWebPSupport = async () => {
+      const webpSupported = document.createElement('canvas')
+        .toDataURL('image/webp')
+        .indexOf('data:image/webp') === 0;
+      
+      setSupportsWebP(webpSupported);
+    };
+    
+    checkWebPSupport();
+  }, []);
+  
+  return supportsWebP;
+};
+
+const files = ["citysketch1.webp", "citysketch2.webp", "citysketch3.webp", "citysketch4.webp", 
+               "mountainsketch1.webp", "mountainsketch2.webp", "mountainsketch3.webp", "mountainsketch4.webp", 
+               "beachsketch1.webp", "beachsketch2.webp", "beachsketch3.webp", "beachsketch4.webp"]
 
 const useStaticBackground = () => {
   const [isLoading, setIsLoading] = useState(true);
+  const [imageSrc, setImageSrc] = useState('');
+  const supportsWebP = useWebPSupport();
   
-  // Select a random image from the files array
-  const randomIndex = Math.floor(Math.random() * files.length);
-  const staticBackground = `/backgrounds/${encodeURIComponent(files[randomIndex])}`;
-
-  // Preload the image when component mounts
   useEffect(() => {
-    const preloadImage = async () => {
-      const img = new Image();
-      img.src = staticBackground;
-      
-      img.onload = () => {
-        setIsLoading(false);
-      };
-      
-      img.onerror = () => {
-        console.error('Failed to load background image');
-        setIsLoading(false);
-      };
-    };
+    // Select a random image from the files array
+    const randomIndex = Math.floor(Math.random() * files.length);
+    const staticBackground = `/backgrounds/${encodeURIComponent(files[randomIndex])}`;
+    setImageSrc(staticBackground);
+    
+    setIsLoading(false);
+  }, [supportsWebP]);
 
-    preloadImage();
-  }, [staticBackground]);
-
-  return staticBackground;
+  return { imageSrc, isLoading };
 };
 
 // Separate the tutorial section into its own component
@@ -66,19 +76,38 @@ const TutorialSection = () => {
 };
 
 export default function AboutPage() {
-  const backgroundImage = useStaticBackground();
+  const { imageSrc, isLoading } = useStaticBackground();
 
   return (
     <main className="flex flex-col min-h-screen overflow-x-hidden bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Hero Section with Steps */}
       <div 
-        className="relative min-h-screen w-full bg-cover bg-center bg-no-repeat flex flex-col justify-center items-center flex-shrink-0 pt-20 md:pt-0"
-        style={{ 
-          backgroundImage: `url("${backgroundImage}")`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
+        className="relative min-h-screen w-full flex flex-col justify-center items-center flex-shrink-0 pt-20 md:pt-0"
       >
+        {/* Background image with Next.js Image component */}
+        {imageSrc && (
+          <div className="absolute inset-0">
+            <Image
+              src={imageSrc}
+              alt="Background"
+              fill
+              priority
+              sizes="100vw"
+              quality={80}
+              className="object-cover"
+              placeholder="blur"
+              blurDataURL="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+P+/HgAEDQIHXG8H1QAAAABJRU5ErkJggg=="
+            />
+          </div>
+        )}
+        
+        {/* Loading state */}
+        {isLoading && (
+          <div className="absolute inset-0 bg-gradient-to-b from-blue-900 to-purple-900 flex items-center justify-center">
+            <div className="animate-pulse text-white text-xl">Loading...</div>
+          </div>
+        )}
+        
         {/* Enhanced dark overlay with gradient */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/40 backdrop-blur-[2px]" />
         
