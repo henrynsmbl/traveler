@@ -46,16 +46,14 @@ const files = ["citysketch1.webp", "citysketch2.webp", "citysketch3.webp", "city
 const useStaticBackground = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [imageSrc, setImageSrc] = useState('');
-  const supportsWebP = useWebPSupport();
   
   useEffect(() => {
-    // Select a random image from the files array
+    // Select a random image, but do it only once when the component mounts
     const randomIndex = Math.floor(Math.random() * files.length);
     const staticBackground = `/backgrounds/${encodeURIComponent(files[randomIndex])}`;
     setImageSrc(staticBackground);
-    
     setIsLoading(false);
-  }, [supportsWebP]);
+  }, []);  // Empty dependency array ensures this runs only once
 
   return { imageSrc, isLoading };
 };
