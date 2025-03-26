@@ -11,6 +11,11 @@ interface SubscriptionStatus {
   updatedAt: number;
 }
 
+interface SubscriptionInfo extends SubscriptionStatus {
+  cancelAtPeriodEnd: boolean;
+  canceledAt?: number;
+}
+
 export async function updateUserSubscription(userId: string, subscription: SubscriptionStatus) {
   try {
     console.log(`Updating subscription for user ${userId}:`, subscription);
@@ -41,14 +46,19 @@ export async function updateUserSubscription(userId: string, subscription: Subsc
   }
 }
 
-export async function getUserSubscription(userId: string): Promise<SubscriptionStatus | null> {
+export async function getUserSubscription(userId: string): Promise<SubscriptionInfo | null> {
   try {
-    const userRef = doc(db, 'users', userId);
-    const userDoc = await getDoc(userRef);
-    const data = userDoc.exists() ? userDoc.data().subscription : null;
-    return data;
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    if (userDoc.exists() && userDoc.data().subscription) {
+      const subData = userDoc.data().subscription;
+      return {
+        ...subData,
+        cancelAtPeriodEnd: subData.cancelAtPeriodEnd || false // Add default value
+      };
+    }
+    return null;
   } catch (error) {
-    console.error('Error getting subscription:', error);
-    throw error;
+    console.error('Error getting user subscription:', error);
+    return null;
   }
 } 

@@ -12,11 +12,13 @@ interface SubscriptionInfo {
   plan: string;
   currentPeriodEnd: number;
   customerId: string;
+  cancelAtPeriodEnd: boolean;
 }
 
 const getPlanName = (priceId: string) => {
   const plans: { [key: string]: string } = {
-    'price_1Qo8FQIzmoU5zafN1BNi81Im': 'Pro Plan',
+    'price_1R59roIzmoU5zafNJNxPLXN9': 'Ultimate Plan',
+    'price_1R59roIzmoU5zafNovVMqvVK': 'Ultimate Plan',
   };
   return plans[priceId] || 'No Plan';
 };
@@ -174,6 +176,13 @@ const AccountPage: React.FC = () => {
                       </div>
                     </div>
                   </div>
+
+                  {subscription.status === 'active' && subscription.cancelAtPeriodEnd && (
+                    <div className="text-amber-600 mt-2">
+                      Your subscription will cancel on {new Date(subscription.currentPeriodEnd * 1000).toLocaleDateString()}.
+                      You'll have access until then.
+                    </div>
+                  )}
 
                   <div className="flex justify-center pt-2">
                     <button

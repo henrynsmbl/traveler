@@ -20,7 +20,6 @@ export async function POST(request: Request) {
     const origin = request.headers.get('origin');
     const allowedOrigins = [
       process.env.NEXT_PUBLIC_BASE_URL,
-      'https://aitinerary.world',
       'https://www.aitinerary.world',
       'http://localhost:3000',
       'http://localhost:3001'

@@ -130,7 +130,9 @@ export async function POST(request: Request) {
             customerId: customerId,
             subscriptionId: subscription.id,
             createdAt: subscription.created,
-            updatedAt: Date.now()
+            updatedAt: Date.now(),
+            cancelAtPeriodEnd: subscription.cancel_at_period_end,
+            canceledAt: subscription.canceled_at,
           };
 
           console.log('Attempting to update user subscription:', {
