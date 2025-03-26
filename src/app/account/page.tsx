@@ -55,8 +55,6 @@ const AccountPage: React.FC = () => {
       setErrorMessage(null);
       
       const customerId = subscription.customerId;
-      console.log('Customer ID being used:', customerId);
-      console.log('Stripe mode:', process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_') ? 'live' : 'test');
 
       const response = await fetch('/api/create-portal-session', {
         method: 'POST',
