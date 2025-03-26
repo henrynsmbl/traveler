@@ -32,7 +32,6 @@ export default function PrivacyPage() {
             <ul className="list-disc pl-6 mt-2 space-y-1">
               <li>Usage data: Information about how you interact with our services, such as the features you use, pages you visit, and actions you take.</li>
               <li>Device information: Information about the device you use to access our services, including device type, operating system, browser type, and IP address.</li>
-              <li>Cookies and similar technologies: We use cookies and similar technologies to collect information about your browsing activities and to manage your preferences.</li>
             </ul>
           </section>
 
@@ -130,7 +129,7 @@ export default function PrivacyPage() {
                 href="mailto:support@aitinerary.world"
                 className="text-blue-500 hover:text-blue-600"
               >
-                support@aitinerary.world
+                henry@aitinerary.world
               </a>
             </p>
           </section>
