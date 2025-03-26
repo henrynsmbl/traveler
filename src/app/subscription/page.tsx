@@ -8,6 +8,7 @@ import { auth } from '@/lib/firebase/config'
 import { onAuthStateChanged } from 'firebase/auth'
 import getStripe from '@/lib/stripe/client';
 import SubscribeButton from '@/components/stripe/SubscribeButton';
+import CouponInput from '@/components/CouponInput';
 
 interface PricingTier {
   name: string;
@@ -46,6 +47,8 @@ export default function SubscriptionPage() {
   const [isYearly, setIsYearly] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isAuthChecking, setIsAuthChecking] = useState(true)
+  const [couponCode, setCouponCode] = useState<string | null>(null)
+  const [showCoupon, setShowCoupon] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -77,6 +80,7 @@ export default function SubscriptionPage() {
           price_id,
           userId: user.uid,
           email: user.email,
+          couponCode: couponCode
         }),
       });
 
@@ -94,6 +98,10 @@ export default function SubscriptionPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleApplyCoupon = (code: string) => {
+    setCouponCode(code);
   };
 
   // Show loading state while checking authentication
@@ -148,11 +156,11 @@ export default function SubscriptionPage() {
                 <div
                   key={tier.name}
                   className={`relative rounded-3xl p-6 sm:p-8 flex flex-col
-                    transform transition-all duration-500 hover:scale-105
+                    transition-all duration-300 hover:shadow-2xl
                     max-w-md w-full
                     ${tier.recommended 
                       ? 'bg-gradient-to-br from-blue-600/10 to-purple-500/10 border border-blue-200 dark:border-blue-800 shadow-[0_20px_50px_rgba(8,_112,_184,_0.3)]' 
-                      : 'bg-white dark:bg-gray-800 sm:bg-white/80 sm:dark:bg-gray-800/80 sm:backdrop-blur-lg border border-gray-100 dark:border-gray-700 shadow-xl hover:shadow-2xl'
+                      : 'bg-white dark:bg-gray-800 sm:bg-white/80 sm:dark:bg-gray-800/80 sm:backdrop-blur-lg border border-gray-100 dark:border-gray-700 shadow-xl'
                     }`}
                 >
                   {tier.recommended && (
@@ -201,6 +209,22 @@ export default function SubscriptionPage() {
                   >
                     {isLoading ? 'Processing...' : 'Get Started'}
                   </button>
+
+                  <div className="mt-4 w-full">
+                    <button
+                      onClick={() => setShowCoupon(!showCoupon)}
+                      className="text-sm text-blue-500 hover:text-blue-600 font-medium flex items-center justify-center w-full"
+                    >
+                      {showCoupon ? 'Hide coupon code' : 'Have a coupon code?'}
+                    </button>
+                    
+                    {showCoupon && (
+                      <CouponInput 
+                        onApply={handleApplyCoupon} 
+                        disabled={isLoading} 
+                      />
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
