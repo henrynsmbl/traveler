@@ -303,7 +303,8 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
         body: JSON.stringify({
           prompt: searchQuery,
           history: currentSession?.messages || [],
-          flightParams: flightParams
+          flightParams: flightParams,
+          isDirectFlightSearch: true
         }),
       });
       

@@ -78,6 +78,8 @@ const MemoizedMapComponent = React.memo(MapComponent);
 
 async function searchAPI(prompt: string, history: Message[]): Promise<SearchAPIResponse> {
   try {
+    console.log("searchAPI - Sending request with prompt:", prompt);
+    
     const response = await fetch('/api/search', {
       method: 'POST',
       headers: {
@@ -99,10 +101,12 @@ async function searchAPI(prompt: string, history: Message[]): Promise<SearchAPIR
     });
 
     if (!response.ok) {
+      console.error(`searchAPI - HTTP error: ${response.status}`);
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const data = await response.json();
+    console.log("searchAPI - API response:", data);
     
     // Check if the response is empty and provide a fallback
     if (!data.contents?.[0]?.content || data.contents[0].content.trim() === "") {
@@ -113,6 +117,11 @@ async function searchAPI(prompt: string, history: Message[]): Promise<SearchAPIR
         flights: undefined,
         hotels: undefined
       };
+    }
+    
+    // Log the extracted flight data if present
+    if (data.contents?.[0]?.flights) {
+      console.log("searchAPI - Flight data found:", data.contents[0].flights);
     }
     
     // Extract the relevant fields from the response
@@ -584,7 +593,7 @@ export default function Home() {
 
           {user && (
             <>
-              {!isSelectionsSidebarOpen && !isFlightSearchOpen && (
+              {!isSelectionsSidebarOpen && !isFlightSearchOpen && !isHotelSearchOpen && (
                 <>
                   <MapButton 
                     onClick={() => setIsMapOpen(true)} 

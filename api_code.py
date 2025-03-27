@@ -401,6 +401,8 @@ def analyze_intent(OPENAI_API_KEY, PERPLEXITY_API_KEY, SERPAI_API_KEY, user_inpu
       "budget": include the user's overall budget if mentioned
       "notes": put any notes that the user should know
 
+      If the user asked specifically for a flight or hotel individually like "show me flights from DEN to LHR", fill in only the individual field. 
+
       For dates:
         - Current date for comparison is: {datetime.now().strftime('%Y-%m-%d')}
         - When comparing dates:
@@ -456,9 +458,12 @@ def analyze_intent(OPENAI_API_KEY, PERPLEXITY_API_KEY, SERPAI_API_KEY, user_inpu
         if pattern.get('flight'):
             flight_str = pattern['flight']
             if flight_str:
+                print(f"Building flight params from: {flight_str}")
                 dynamic_flight_params = build_flight_search_params(OPENAI_API_KEY, flight_str)
                 if dynamic_flight_params:
+                    print(f"Generated flight params: {dynamic_flight_params}")
                     flight_info = get_search_results({**base_flight_params, **dynamic_flight_params})
+                    print(f"Flight search results: {json.dumps(flight_info, indent=2)}")  # Debug log
                     if isinstance(flight_info, dict) and not 'error' in flight_info:
                         # Extract and subtract flight cost from budget
                         if total_budget > 0 and 'best_flights' in flight_info and flight_info['best_flights']:
@@ -604,6 +609,9 @@ def lambda_handler(event, context):
         prompt = body.get('prompt', '')
         flight_params = body.get('flightParams', {})
         
+        # Add an explicit flag to identify the source of the request
+        is_direct_flight_search = body.get('isDirectFlightSearch', False)
+        
         # Add this line after extracting prompt
         conversation_history = ""
         if "Previous conversation:" in context:
@@ -615,8 +623,9 @@ def lambda_handler(event, context):
                 instruction_split = conversation_text.split("Be accurate", 1)
                 conversation_history = instruction_split[0].strip()
         
-        # If flight params are provided, use them for flight search
-        if flight_params:
+        # If this is a direct flight search or has complete flight parameters
+        if is_direct_flight_search or (flight_params and 'departure_id' in flight_params and 'arrival_id' in flight_params):
+            print(f"Processing direct flight search with params: {flight_params}")
             # Add the base parameters
             base_flight_params = {
                 "api_key": SERPAI_API_KEY,
@@ -636,7 +645,8 @@ def lambda_handler(event, context):
                 "citations": []
             }
         else:
-            # Use the regular intent analysis for non-flight searches
+            print(f"Processing natural language query: {prompt}")
+            # Use the regular intent analysis for natural language searches
             response = analyze_intent(
                 OPENAI_API_KEY, 
                 PERPLEXITY_API_KEY, 
