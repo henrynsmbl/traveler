@@ -168,6 +168,9 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
   const { user } = useAuth();
   const { currentSession, updateCurrentSession } = useChatSessions();
   
+  // Add loading state
+  const [isLoading, setIsLoading] = useState(false);
+  
   // Basic parameters
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
@@ -184,10 +187,33 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
   // Advanced filters toggle
   const [showFilters, setShowFilters] = useState(false);
   
+  // First, add new state variables for the additional parameters
+  const [travelClass, setTravelClass] = useState(1); // Economy by default
+  const [showHidden, setShowHidden] = useState(false);
+  const [deepSearch, setDeepSearch] = useState(false);
+  const [children, setChildren] = useState(0);
+  const [infantsInSeat, setInfantsInSeat] = useState(0);
+  const [infantsOnLap, setInfantsOnLap] = useState(0);
+  const [sortBy, setSortBy] = useState(1); // Top flights by default
+  const [stops, setStops] = useState(0); // Any number of stops by default
+  const [airlines, setAirlines] = useState('');
+  const [excludeAirlines, setExcludeAirlines] = useState(false); // Toggle between include/exclude
+  const [bags, setBags] = useState(0);
+  const [maxPrice, setMaxPrice] = useState('');
+  const [outboundTimes, setOutboundTimes] = useState('');
+  const [returnTimes, setReturnTimes] = useState('');
+  const [emissions, setEmissions] = useState(0);
+  const [layoverDuration, setLayoverDuration] = useState('');
+  const [excludeConns, setExcludeConns] = useState('');
+  const [maxDuration, setMaxDuration] = useState('');
+  
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Set loading state to true
+    setIsLoading(true);
     
     // Collect all search parameters, only including defined values
     const flightParams: Record<string, any> = {};
@@ -205,28 +231,64 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
     flightParams.currency = currency;
     flightParams.adults = passengers;
     
+    // Add new parameters
+    flightParams.travel_class = travelClass;
+    if (showHidden) flightParams.show_hidden = showHidden;
+    if (deepSearch) flightParams.deep_search = deepSearch;
+    if (children > 0) flightParams.children = children;
+    if (infantsInSeat > 0) flightParams.infants_in_seat = infantsInSeat;
+    if (infantsOnLap > 0) flightParams.infants_on_lap = infantsOnLap;
+    flightParams.sort_by = sortBy;
+    flightParams.stops = stops;
+    
+    if (airlines) {
+      if (excludeAirlines) {
+        flightParams.exclude_airlines = airlines;
+      } else {
+        flightParams.include_airlines = airlines;
+      }
+    }
+    
+    if (bags > 0) flightParams.bags = bags;
+    if (maxPrice) flightParams.max_price = maxPrice;
+    if (outboundTimes) flightParams.outbound_times = outboundTimes;
+    if (returnTimes && tripType === 'roundtrip') flightParams.return_times = returnTimes;
+    if (emissions === 1) flightParams.emissions = emissions;
+    if (layoverDuration) flightParams.layover_duration = layoverDuration;
+    if (excludeConns) flightParams.exclude_conns = excludeConns;
+    if (maxDuration) flightParams.max_duration = parseInt(maxDuration);
+    
     console.log("Flight search parameters:", flightParams);
     
     // Create a user-friendly search query for the API
-    const searchQuery = `Find flights from ${origin} to ${destination} departing on ${departDate}${
-      tripType === 'roundtrip' ? ` and returning on ${returnDate}` : ''
-    } for ${passengers} adult${passengers > 1 ? 's' : ''}`;
+    const searchQuery = `Manual search from ${origin} to ${destination}`;
     
+    // Define userMessage outside the try block so it's accessible in the catch block
+    const userMessage = {
+      contents: [{ content: searchQuery, type: 'text' as ContentType }],
+      isUser: true,
+      timestamp: new Date()
+    };
+    
+    // Create a loading message with a special content type
+    const loadingMessage = {
+      contents: [{ 
+        type: 'loading' as ContentType, // Use a special type for loading
+        content: "Searching..." 
+      }],
+      isUser: false,
+      timestamp: new Date()
+    };
+
     try {
       // Only proceed if user is logged in and there's an active session
       if (!user || !currentSession) {
         console.error("User not logged in or no active session");
+        setIsLoading(false);
         return;
       }
       
-      // Create a user message with the search query
-      const userMessage = {
-        contents: [{ content: searchQuery, type: 'text' as ContentType }],
-        isUser: true,
-        timestamp: new Date()
-      };
-      
-      // Update the chat session with just the user's message first
+      // Update the chat session with the user's message and loading message
       await updateCurrentSession({
         messages: [...(currentSession?.messages || []), userMessage]
       });
@@ -262,8 +324,12 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
         timestamp: new Date()
       };
       
-      // Add the text message to the chat
-      const updatedMessages = [...(currentSession?.messages || []), userMessage, textMessage];
+      // Then update the filter to look for this type:
+      const messagesWithoutLoading = currentSession?.messages.filter(
+        msg => !msg.contents.some(content => content.type === 'loading')
+      ) || [];
+      
+      const updatedMessages = [...messagesWithoutLoading, userMessage, textMessage];
       await updateCurrentSession({
         messages: updatedMessages
       });
@@ -298,6 +364,12 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
       
     } catch (error) {
       console.error("Error submitting flight search:", error);
+      
+      // Remove the loading message
+      const messagesWithoutLoading = currentSession?.messages.filter(
+        msg => !msg.contents.some(content => content.type === 'loading')
+      ) || [];
+      
       // Add a simple error message to the chat
       const errorMessage = {
         contents: [
@@ -311,8 +383,11 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
       };
       
       await updateCurrentSession({
-        messages: [...(currentSession?.messages || []), userMessage, errorMessage]
+        messages: [...messagesWithoutLoading, userMessage, errorMessage]
       });
+    } finally {
+      // Set loading state back to false
+      setIsLoading(false);
     }
   };
 
@@ -429,7 +504,7 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
             </select>
           </div>
           
-          {/* Search button */}
+          {/* Search button with loading state */}
           <div className={`md:col-span-${tripType === 'roundtrip' ? '3' : '6'}`}>
             <label className="block text-sm font-medium text-transparent dark:text-transparent mb-1">
               Search
@@ -439,6 +514,7 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
                 type="button"
                 onClick={() => setShowFilters(!showFilters)}
                 className="px-3 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 text-sm font-medium rounded-md transition-colors flex items-center"
+                disabled={isLoading}
               >
                 <Filter size={16} className="mr-1" />
                 More Options
@@ -446,9 +522,17 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
               </button>
               <button
                 type="submit"
-                className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors"
+                className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center"
+                disabled={isLoading}
               >
-                Search
+                {isLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-t-2 border-white rounded-full animate-spin mr-2" />
+                    Searching...
+                  </>
+                ) : (
+                  'Search'
+                )}
               </button>
             </div>
           </div>
@@ -528,6 +612,244 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
                 <option value="BRL">Brazilian Real (BRL)</option>
                 <option value="MXN">Mexican Peso (MXN)</option>
               </select>
+            </div>
+
+            {/* Travel Class */}
+            <div className="md:col-span-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Travel Class
+              </label>
+              <select
+                value={travelClass}
+                onChange={(e) => setTravelClass(parseInt(e.target.value))}
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              >
+                <option value={1}>Economy</option>
+                <option value={2}>Premium Economy</option>
+                <option value={3}>Business</option>
+                <option value={4}>First</option>
+              </select>
+            </div>
+
+            {/* Sort By */}
+            <div className="md:col-span-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Sort Results By
+              </label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(parseInt(e.target.value))}
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              >
+                <option value={1}>Top Flights</option>
+                <option value={2}>Price</option>
+                <option value={3}>Departure Time</option>
+                <option value={4}>Arrival Time</option>
+                <option value={5}>Duration</option>
+                <option value={6}>Emissions</option>
+              </select>
+            </div>
+
+            {/* Stops */}
+            <div className="md:col-span-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Stops
+              </label>
+              <select
+                value={stops}
+                onChange={(e) => setStops(parseInt(e.target.value))}
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              >
+                <option value={0}>Any</option>
+                <option value={1}>Nonstop Only</option>
+                <option value={2}>1 Stop or Fewer</option>
+                <option value={3}>2 Stops or Fewer</option>
+              </select>
+            </div>
+
+            {/* Additional Passengers */}
+            <div className="md:col-span-12 mt-2">
+              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Additional Passengers</h4>
+            </div>
+
+            <div className="md:col-span-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Children
+              </label>
+              <select
+                value={children}
+                onChange={(e) => setChildren(parseInt(e.target.value))}
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              >
+                {[0, 1, 2, 3, 4, 5, 6].map(num => (
+                  <option key={num} value={num}>{num}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Infants in Seat
+              </label>
+              <select
+                value={infantsInSeat}
+                onChange={(e) => setInfantsInSeat(parseInt(e.target.value))}
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              >
+                {[0, 1, 2, 3, 4].map(num => (
+                  <option key={num} value={num}>{num}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Infants on Lap
+              </label>
+              <select
+                value={infantsOnLap}
+                onChange={(e) => setInfantsOnLap(parseInt(e.target.value))}
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              >
+                {[0, 1, 2, 3, 4].map(num => (
+                  <option key={num} value={num}>{num}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Advanced Filters */}
+            <div className="md:col-span-12 mt-2">
+              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Advanced Filters</h4>
+            </div>
+
+            {/* Airlines */}
+            <div className="md:col-span-6">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {excludeAirlines ? 'Exclude Airlines' : 'Include Airlines'} (comma-separated codes)
+              </label>
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  value={airlines}
+                  onChange={(e) => setAirlines(e.target.value)}
+                  placeholder="e.g. AA,DL,UA"
+                  className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                />
+                <button
+                  type="button"
+                  onClick={() => setExcludeAirlines(!excludeAirlines)}
+                  className="px-3 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 text-sm font-medium rounded-md"
+                >
+                  {excludeAirlines ? 'Switch to Include' : 'Switch to Exclude'}
+                </button>
+              </div>
+            </div>
+
+            {/* Max Price */}
+            <div className="md:col-span-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Max Price
+              </label>
+              <input
+                type="text"
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(e.target.value)}
+                placeholder="e.g. 500"
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              />
+            </div>
+
+            {/* Bags */}
+            <div className="md:col-span-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Carry-on Bags
+              </label>
+              <select
+                value={bags}
+                onChange={(e) => setBags(parseInt(e.target.value))}
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              >
+                {[0, 1, 2].map(num => (
+                  <option key={num} value={num}>{num}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Toggle Options */}
+            <div className="md:col-span-12 mt-2">
+              <div className="flex flex-wrap gap-4">
+                <label className="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={showHidden}
+                    onChange={(e) => setShowHidden(e.target.checked)}
+                    className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>Show Hidden Results</span>
+                </label>
+                
+                <label className="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={deepSearch}
+                    onChange={(e) => setDeepSearch(e.target.checked)}
+                    className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>Deep Search</span>
+                </label>
+                
+                <label className="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={emissions === 1}
+                    onChange={(e) => setEmissions(e.target.checked ? 1 : 0)}
+                    className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>Lower Emissions Only</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Max Duration */}
+            <div className="md:col-span-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Max Duration (minutes)
+              </label>
+              <input
+                type="number"
+                value={maxDuration}
+                onChange={(e) => setMaxDuration(e.target.value)}
+                placeholder="e.g. 600"
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              />
+            </div>
+
+            {/* Layover Duration */}
+            <div className="md:col-span-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Layover Duration (min,max)
+              </label>
+              <input
+                type="text"
+                value={layoverDuration}
+                onChange={(e) => setLayoverDuration(e.target.value)}
+                placeholder="e.g. 90,330"
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              />
+            </div>
+
+            {/* Exclude Connections */}
+            <div className="md:col-span-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Exclude Connections
+              </label>
+              <input
+                type="text"
+                value={excludeConns}
+                onChange={(e) => setExcludeConns(e.target.value)}
+                placeholder="e.g. LHR,CDG"
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              />
             </div>
           </div>
         )}

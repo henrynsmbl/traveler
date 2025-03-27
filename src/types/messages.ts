@@ -3,7 +3,7 @@ import type { TableData } from '@/components/chat/Tables';
 import type { FlightData } from './flight';
 import type { HotelData } from './hotel';
 
-export type ContentType = 'text' | 'flight' | 'hotel';
+export type ContentType = 'text' | 'table' | 'image' | 'video' | 'flight' | 'hotel' | 'markdown' | 'loading';
 
 export type FlightContent = {
   best_flights: FlightData[];
@@ -33,6 +33,7 @@ export interface Citation {
   title?: string;
   text?: string;
   source?: string;
+  snippet?: string;
 }
 
 export interface MessageContent {

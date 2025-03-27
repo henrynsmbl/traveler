@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import DOMPurify from 'dompurify';
 import { ExternalLink, ChevronDown } from 'lucide-react';
 import type { FlightData } from '@/types/flight';
 import type { HotelData } from '@/types/hotel';

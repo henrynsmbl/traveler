@@ -10,9 +10,6 @@ import type { FlightData } from '@/types/flight';
 import type { HotelData } from '@/types/hotel';
 import type { Selection } from '@/types/selections';
 import type { TableData } from './Tables';
-import { ChevronDown } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 
 interface RichContentProps {
   content: MessageContent;
