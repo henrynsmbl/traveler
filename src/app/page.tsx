@@ -20,6 +20,7 @@ import { checkSubscription } from '@/lib/firebase/subscriptionFirestore'
 import { useRouter } from 'next/navigation'
 import MapComponent from '../components/map/MapComponent'
 import { FlightSearchContainer } from '../components/flight/FlightSearch'
+import { HotelSearchContainer } from '../components/hotel/HotelSearch'
 
 const WelcomeScreen = () => {
   const { user } = useAuth();
@@ -452,6 +453,7 @@ export default function Home() {
   const router = useRouter();
   const [isMapOpen, setIsMapOpen] = useState(false);
   const [isFlightSearchOpen, setIsFlightSearchOpen] = useState(false);
+  const [isHotelSearchOpen, setIsHotelSearchOpen] = useState(false);
 
   // Update the hotel data memoization to include all hotel messages
   const memoizedHotelData = useMemo(() => {
@@ -484,12 +486,60 @@ export default function Home() {
         <div className={`flex-1 transition-margin duration-200 ease-in-out
             ${isSidebarOpen ? 'md:ml-64' : 'ml-0'} relative`}>
           
-          {/* Add the flight search at the top */}
-          {user && currentSession && messages.length > 0 && (
-            <FlightSearchContainer 
-              isOpen={isFlightSearchOpen}
-              setIsOpen={setIsFlightSearchOpen}
-            />
+          {user && currentSession && (
+            <>
+              <div className="max-w-5xl mx-auto px-4 pt-2">
+                <div className="flex justify-center space-x-4">
+                  <button
+                    onClick={() => setIsFlightSearchOpen(!isFlightSearchOpen)}
+                    className={`
+                      px-5 py-2.5 text-sm font-medium
+                      transition-colors duration-200
+                      ${isFlightSearchOpen 
+                        ? 'text-blue-700 dark:text-blue-300' 
+                        : 'text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'}
+                    `}
+                  >
+                    {isFlightSearchOpen ? 'Close Flight Search' : 'Search Flights'}
+                  </button>
+                  
+                  <button
+                    onClick={() => setIsHotelSearchOpen(!isHotelSearchOpen)}
+                    className={`
+                      px-5 py-2.5 text-sm font-medium
+                      transition-colors duration-200
+                      ${isHotelSearchOpen 
+                        ? 'text-blue-700 dark:text-blue-300' 
+                        : 'text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'}
+                    `}
+                  >
+                    {isHotelSearchOpen ? 'Close Hotel Search' : 'Search Hotels'}
+                  </button>
+                </div>
+              </div>
+              
+              {isFlightSearchOpen && (
+                <div className="fixed inset-0 z-40 bg-white dark:bg-gray-900 overflow-auto pt-16">
+                  <div className="max-w-5xl mx-auto p-4">
+                    <FlightSearchContainer 
+                      isOpen={isFlightSearchOpen}
+                      setIsOpen={setIsFlightSearchOpen}
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {isHotelSearchOpen && (
+                <div className="fixed inset-0 z-40 bg-white dark:bg-gray-900 overflow-auto pt-16">
+                  <div className="max-w-5xl mx-auto p-4">
+                    <HotelSearchContainer 
+                      isOpen={isHotelSearchOpen}
+                      setIsOpen={setIsHotelSearchOpen}
+                    />
+                  </div>
+                </div>
+              )}
+            </>
           )}
           
           <main className={`h-full pb-24 ${currentSession && messages.length > 0 ? 'overflow-y-auto scrollbar-gutter-stable' : ''}`}>
@@ -534,7 +584,7 @@ export default function Home() {
 
           {user && (
             <>
-              {!isSelectionsSidebarOpen && (
+              {!isSelectionsSidebarOpen && !isFlightSearchOpen && (
                 <>
                   <MapButton 
                     onClick={() => setIsMapOpen(true)} 

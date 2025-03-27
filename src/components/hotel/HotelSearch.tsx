@@ -144,27 +144,27 @@ const AirportInput: React.FC<AirportInputProps> = ({
   );
 };
 
-interface FlightSearchButtonProps {
+interface HotelSearchButtonProps {
   onClick: () => void;
   isOpen: boolean;
 }
 
-export const FlightSearchButton: React.FC<FlightSearchButtonProps> = ({ onClick, isOpen }) => (
+export const HotelSearchButton: React.FC<HotelSearchButtonProps> = ({ onClick, isOpen }) => (
   <button
     onClick={onClick}
     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors"
-    aria-label="Search Flights"
+    aria-label="Search Hotels"
   >
-    Flight Search
+    Hotel Search
   </button>
 );
 
-interface FlightSearchDropdownProps {
+interface HotelSearchDropdownProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOpen, onClose }) => {
+export const HotelSearchDropdown: React.FC<HotelSearchDropdownProps> = ({ isOpen, onClose }) => {
   const { user } = useAuth();
   const { currentSession, updateCurrentSession } = useChatSessions();
   
@@ -172,40 +172,36 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
   const [isLoading, setIsLoading] = useState(false);
   
   // Basic parameters
-  const [origin, setOrigin] = useState('');
-  const [destination, setDestination] = useState('');
-  const [departDate, setDepartDate] = useState('');
-  const [returnDate, setReturnDate] = useState('');
-  const [tripType, setTripType] = useState<'roundtrip' | 'oneway'>('roundtrip');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [checkInDate, setCheckInDate] = useState('');
+  const [checkOutDate, setCheckOutDate] = useState('');
   
   // Additional parameters
   const [countryCode, setCountryCode] = useState('us');
   const [languageCode, setLanguageCode] = useState('en');
   const [currency, setCurrency] = useState('USD');
-  const [passengers, setPassengers] = useState(1);
+  const [adults, setAdults] = useState(2);
+  const [children, setChildren] = useState(0);
+  const [childrenAges, setChildrenAges] = useState('');
   
   // Advanced filters toggle
   const [showFilters, setShowFilters] = useState(false);
   
-  // First, add new state variables for the additional parameters
-  const [travelClass, setTravelClass] = useState(1); // Economy by default
-  const [showHidden, setShowHidden] = useState(false);
-  const [deepSearch, setDeepSearch] = useState(false);
-  const [children, setChildren] = useState(0);
-  const [infantsInSeat, setInfantsInSeat] = useState(0);
-  const [infantsOnLap, setInfantsOnLap] = useState(0);
-  const [sortBy, setSortBy] = useState(1); // Top flights by default
-  const [stops, setStops] = useState(0); // Any number of stops by default
-  const [airlines, setAirlines] = useState('');
-  const [excludeAirlines, setExcludeAirlines] = useState(false); // Toggle between include/exclude
-  const [bags, setBags] = useState(0);
+  // Advanced parameters
+  const [sortBy, setSortBy] = useState(0); // Default: Relevance
+  const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
-  const [outboundTimes, setOutboundTimes] = useState('');
-  const [returnTimes, setReturnTimes] = useState('');
-  const [emissions, setEmissions] = useState(0);
-  const [layoverDuration, setLayoverDuration] = useState('');
-  const [excludeConns, setExcludeConns] = useState('');
-  const [maxDuration, setMaxDuration] = useState('');
+  const [propertyTypes, setPropertyTypes] = useState('');
+  const [amenities, setAmenities] = useState('');
+  const [rating, setRating] = useState(0);
+  const [brands, setBrands] = useState('');
+  const [hotelClass, setHotelClass] = useState('');
+  const [freeCancellation, setFreeCancellation] = useState(false);
+  const [specialOffers, setSpecialOffers] = useState(false);
+  const [ecoCertified, setEcoCertified] = useState(false);
+  const [vacationRentals, setVacationRentals] = useState(false);
+  const [bedrooms, setBedrooms] = useState(0);
+  const [bathrooms, setBathrooms] = useState(0);
   
   if (!isOpen) return null;
 
@@ -216,56 +212,45 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
     setIsLoading(true);
     
     // Collect all search parameters, only including defined values
-    const flightParams: Record<string, any> = {};
+    const hotelParams: Record<string, any> = {};
     
     // Add basic parameters (only if they have values)
-    if (origin) flightParams.departure_id = origin;
-    if (destination) flightParams.arrival_id = destination;
-    if (departDate) flightParams.outbound_date = departDate;
-    if (tripType === 'roundtrip' && returnDate) flightParams.return_date = returnDate;
-    flightParams.type = tripType === 'roundtrip' ? 1 : 2;
+    if (searchQuery) hotelParams.q = searchQuery;
+    if (checkInDate) hotelParams.check_in_date = checkInDate;
+    if (checkOutDate) hotelParams.check_out_date = checkOutDate;
     
     // Add additional parameters
-    flightParams.gl = countryCode;
-    flightParams.hl = languageCode;
-    flightParams.currency = currency;
-    flightParams.adults = passengers;
+    hotelParams.gl = countryCode;
+    hotelParams.hl = languageCode;
+    hotelParams.currency = currency;
+    hotelParams.adults = adults;
     
-    // Add new parameters
-    flightParams.travel_class = travelClass;
-    if (showHidden) flightParams.show_hidden = showHidden;
-    if (deepSearch) flightParams.deep_search = deepSearch;
-    if (children > 0) flightParams.children = children;
-    if (infantsInSeat > 0) flightParams.infants_in_seat = infantsInSeat;
-    if (infantsOnLap > 0) flightParams.infants_on_lap = infantsOnLap;
-    flightParams.sort_by = sortBy;
-    flightParams.stops = stops;
+    // Add advanced parameters if they have values
+    if (children > 0) hotelParams.children = children;
+    if (childrenAges) hotelParams.children_ages = childrenAges;
+    if (sortBy > 0) hotelParams.sort_by = sortBy;
+    if (minPrice) hotelParams.min_price = parseInt(minPrice);
+    if (maxPrice) hotelParams.max_price = parseInt(maxPrice);
+    if (propertyTypes) hotelParams.property_types = propertyTypes;
+    if (amenities) hotelParams.amenities = amenities;
+    if (rating > 0) hotelParams.rating = rating;
+    if (brands) hotelParams.brands = brands;
+    if (hotelClass) hotelParams.hotel_class = hotelClass;
+    if (freeCancellation) hotelParams.free_cancellation = freeCancellation;
+    if (specialOffers) hotelParams.special_offers = specialOffers;
+    if (ecoCertified) hotelParams.eco_certified = ecoCertified;
+    if (vacationRentals) hotelParams.vacation_rentals = vacationRentals;
+    if (bedrooms > 0) hotelParams.bedrooms = bedrooms;
+    if (bathrooms > 0) hotelParams.bathrooms = bathrooms;
     
-    if (airlines) {
-      if (excludeAirlines) {
-        flightParams.exclude_airlines = airlines;
-      } else {
-        flightParams.include_airlines = airlines;
-      }
-    }
-    
-    if (bags > 0) flightParams.bags = bags;
-    if (maxPrice) flightParams.max_price = maxPrice;
-    if (outboundTimes) flightParams.outbound_times = outboundTimes;
-    if (returnTimes && tripType === 'roundtrip') flightParams.return_times = returnTimes;
-    if (emissions === 1) flightParams.emissions = emissions;
-    if (layoverDuration) flightParams.layover_duration = layoverDuration;
-    if (excludeConns) flightParams.exclude_conns = excludeConns;
-    if (maxDuration) flightParams.max_duration = parseInt(maxDuration);
-    
-    console.log("Flight search parameters:", flightParams);
+    console.log("Hotel search parameters:", hotelParams);
     
     // Create a user-friendly search query for the API
-    const searchQuery = `Manual search from ${origin} to ${destination}`;
+    const userQueryText = `Hotel search for ${searchQuery}`;
     
     // Define userMessage outside the try block so it's accessible in the catch block
     const userMessage = {
-      contents: [{ content: searchQuery, type: 'text' as ContentType }],
+      contents: [{ content: userQueryText, type: 'text' as ContentType }],
       isUser: true,
       timestamp: new Date()
     };
@@ -294,16 +279,16 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
       });
       
       // Now send the search query to your API
-      console.log("Sending flight search to API with params:", flightParams);
+      console.log("Sending hotel search to API with params:", hotelParams);
       const response = await fetch('/api/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          prompt: searchQuery,
+          prompt: userQueryText,
           history: currentSession?.messages || [],
-          flightParams: flightParams
+          hotelParams: hotelParams
         }),
       });
       
@@ -312,13 +297,13 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
       }
       
       const data = await response.json();
-      console.log("Flight search response:", data);
+      console.log("Hotel search response:", data);
       
       // Create a text message with the response
       const textMessage = {
         contents: [{ 
           type: 'text' as ContentType, 
-          content: data.contents?.[0]?.content || "Here are your flight search results."
+          content: data.contents?.[0]?.content || "Here are your hotel search results."
         }],
         isUser: false,
         timestamp: new Date()
@@ -334,36 +319,35 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
         messages: updatedMessages
       });
       
-      // Check if flight data is in the response
-      if (data.contents?.[0]?.flights) {
-        console.log("Found flight data in contents:", data.contents[0].flights);
+      // Check if hotel data is in the response
+      if (data.contents?.[0]?.hotels) {
+        console.log("Found hotel data in contents:", data.contents[0].hotels);
         
-        // Create a flight message
-        const flightMessage = {
+        // Create a hotel message
+        const hotelMessage = {
           contents: [{ 
-            type: 'flight' as ContentType, 
+            type: 'hotel' as ContentType, 
             content: {
-              best_flights: data.contents[0].flights.best_flights || [],
-              other_flights: data.contents[0].flights.other_flights || [],
-              search_metadata: data.contents[0].flights.search_metadata || {}
+              properties: data.contents[0].hotels.properties || [],
+              search_metadata: data.contents[0].hotels.search_metadata || {}
             }
           }],
           isUser: false,
           timestamp: new Date()
         };
         
-        // Add the flight message to the chat in a separate update
-        const finalMessages = [...updatedMessages, flightMessage];
+        // Add the hotel message to the chat in a separate update
+        const finalMessages = [...updatedMessages, hotelMessage];
         await updateCurrentSession({
           messages: finalMessages
         });
       }
       
-      // Close the flight search form
+      // Close the hotel search form
       onClose();
       
     } catch (error) {
-      console.error("Error submitting flight search:", error);
+      console.error("Error submitting hotel search:", error);
       
       // Remove the loading message
       const messagesWithoutLoading = currentSession?.messages.filter(
@@ -375,7 +359,7 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
         contents: [
           {
             type: 'text' as ContentType,
-            content: "Sorry, I encountered an error while searching for flights. Please try again."
+            content: "Sorry, I encountered an error while searching for hotels. Please try again."
           }
         ],
         isUser: false,
@@ -396,7 +380,7 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
       <form onSubmit={handleSubmit} className="max-w-5xl mx-auto p-4">
         <div className="flex justify-between items-center mb-3">
           <h3 className="text-lg font-medium text-gray-800 dark:text-gray-200">
-            Flight Search
+            Hotel Search
           </h3>
           <button 
             type="button" 
@@ -408,102 +392,101 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-          {/* Trip type selector */}
-          <div className="md:col-span-12 flex space-x-2 mb-1">
-            <button
-              type="button"
-              className={`flex-1 px-3 py-2 text-sm rounded-md ${
-                tripType === 'roundtrip' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
-              }`}
-              onClick={() => setTripType('roundtrip')}
-            >
-              Round Trip
-            </button>
-            <button
-              type="button"
-              className={`flex-1 px-3 py-2 text-sm rounded-md ${
-                tripType === 'oneway' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
-              }`}
-              onClick={() => setTripType('oneway')}
-            >
-              One Way
-            </button>
-          </div>
-          
-          {/* Origin input */}
-          <div className="md:col-span-6">
-            <AirportInput
-              value={origin}
-              onChange={setOrigin}
-              placeholder="City or airport code"
-              label="From"
-              required
-            />
-          </div>
-          
-          {/* Destination input */}
-          <div className="md:col-span-6">
-            <AirportInput
-              value={destination}
-              onChange={setDestination}
-              placeholder="City or airport code"
-              label="To"
-              required
-            />
-          </div>
-          
-          {/* Depart date */}
-          <div className="md:col-span-3">
+          {/* Search query input */}
+          <div className="md:col-span-12">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Depart
+              Destination
+            </label>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="City, neighborhood, or hotel"
+              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              required
+            />
+          </div>
+          
+          {/* Check-in date */}
+          <div className="md:col-span-6">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Check-in
             </label>
             <input
               type="date"
-              value={departDate}
-              onChange={(e) => setDepartDate(e.target.value)}
+              value={checkInDate}
+              onChange={(e) => setCheckInDate(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               required
             />
           </div>
           
-          {/* Return date */}
-          {tripType === 'roundtrip' && (
-            <div className="md:col-span-3">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Return
-              </label>
-              <input
-                type="date"
-                value={returnDate}
-                onChange={(e) => setReturnDate(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                required={tripType === 'roundtrip'}
-              />
-            </div>
-          )}
-          
-          {/* Passengers */}
-          <div className={`md:col-span-${tripType === 'roundtrip' ? '3' : '6'}`}>
+          {/* Check-out date */}
+          <div className="md:col-span-6">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Passengers
+              Check-out
+            </label>
+            <input
+              type="date"
+              value={checkOutDate}
+              onChange={(e) => setCheckOutDate(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              required
+            />
+          </div>
+          
+          {/* Adults */}
+          <div className="md:col-span-6">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Adults
             </label>
             <select
-              value={passengers}
-              onChange={(e) => setPassengers(parseInt(e.target.value))}
+              value={adults}
+              onChange={(e) => setAdults(parseInt(e.target.value))}
               className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             >
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+              {[1, 2, 3, 4, 5, 6, 7, 8].map(num => (
                 <option key={num} value={num}>
-                  {num} {num === 1 ? 'Passenger' : 'Passengers'}
+                  {num} {num === 1 ? 'Adult' : 'Adults'}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          {/* Children */}
+          <div className="md:col-span-6">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Children
+            </label>
+            <select
+              value={children}
+              onChange={(e) => setChildren(parseInt(e.target.value))}
+              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            >
+              {[0, 1, 2, 3, 4, 5, 6].map(num => (
+                <option key={num} value={num}>
+                  {num} {num === 1 ? 'Child' : 'Children'}
                 </option>
               ))}
             </select>
           </div>
         </div>
+        
+        {/* Children ages input - only show if children > 0 */}
+        {children > 0 && (
+          <div className="mt-3">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Children Ages (comma separated, e.g. 5,7,12)
+            </label>
+            <input
+              type="text"
+              value={childrenAges}
+              onChange={(e) => setChildrenAges(e.target.value)}
+              placeholder="e.g. 5,7,12"
+              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+          </div>
+        )}
         
         {/* Search button in its own centered row */}
         <div className="mt-4 flex justify-center">
@@ -544,144 +527,43 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
               </h4>
             </div>
             
-            {/* Travel Class */}
-            <div className="md:col-span-3">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Travel Class
-              </label>
-              <select
-                value={travelClass}
-                onChange={(e) => setTravelClass(parseInt(e.target.value))}
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              >
-                <option value={1}>Economy</option>
-                <option value={2}>Premium Economy</option>
-                <option value={3}>Business</option>
-                <option value={4}>First</option>
-              </select>
-            </div>
-
             {/* Sort By */}
-            <div className="md:col-span-3">
+            <div className="md:col-span-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Sort Results By
+                Sort By
               </label>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(parseInt(e.target.value))}
                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               >
-                <option value={1}>Top Flights</option>
-                <option value={2}>Price</option>
-                <option value={3}>Departure Time</option>
-                <option value={4}>Arrival Time</option>
-                <option value={5}>Duration</option>
-                <option value={6}>Emissions</option>
+                <option value={0}>Relevance</option>
+                <option value={3}>Lowest price</option>
+                <option value={8}>Highest rating</option>
+                <option value={13}>Most reviewed</option>
               </select>
             </div>
 
-            {/* Stops */}
-            <div className="md:col-span-3">
+            {/* Price Range */}
+            <div className="md:col-span-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Stops
+                Min Price
               </label>
-              <select
-                value={stops}
-                onChange={(e) => setStops(parseInt(e.target.value))}
+              <input
+                type="number"
+                value={minPrice}
+                onChange={(e) => setMinPrice(e.target.value)}
+                placeholder="e.g. 100"
                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              >
-                <option value={0}>Any</option>
-                <option value={1}>Nonstop Only</option>
-                <option value={2}>1 Stop or Fewer</option>
-                <option value={3}>2 Stops or Fewer</option>
-              </select>
-            </div>
-
-            {/* Additional Passengers */}
-            <div className="md:col-span-12 mt-2">
-              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Additional Passengers</h4>
+              />
             </div>
 
             <div className="md:col-span-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Children
-              </label>
-              <select
-                value={children}
-                onChange={(e) => setChildren(parseInt(e.target.value))}
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              >
-                {[0, 1, 2, 3, 4, 5, 6].map(num => (
-                  <option key={num} value={num}>{num}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="md:col-span-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Infants in Seat
-              </label>
-              <select
-                value={infantsInSeat}
-                onChange={(e) => setInfantsInSeat(parseInt(e.target.value))}
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              >
-                {[0, 1, 2, 3, 4].map(num => (
-                  <option key={num} value={num}>{num}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="md:col-span-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Infants on Lap
-              </label>
-              <select
-                value={infantsOnLap}
-                onChange={(e) => setInfantsOnLap(parseInt(e.target.value))}
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              >
-                {[0, 1, 2, 3, 4].map(num => (
-                  <option key={num} value={num}>{num}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Advanced Filters */}
-            <div className="md:col-span-12 mt-2">
-              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Advanced Filters</h4>
-            </div>
-
-            {/* Airlines */}
-            <div className="md:col-span-6">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {excludeAirlines ? 'Exclude Airlines' : 'Include Airlines'} (comma-separated codes)
-              </label>
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  value={airlines}
-                  onChange={(e) => setAirlines(e.target.value)}
-                  placeholder="e.g. AA,DL,UA"
-                  className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                />
-                <button
-                  type="button"
-                  onClick={() => setExcludeAirlines(!excludeAirlines)}
-                  className="px-3 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 text-sm font-medium rounded-md"
-                >
-                  {excludeAirlines ? 'Switch to Include' : 'Switch to Exclude'}
-                </button>
-              </div>
-            </div>
-
-            {/* Max Price */}
-            <div className="md:col-span-3">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Max Price
               </label>
               <input
-                type="text"
+                type="number"
                 value={maxPrice}
                 onChange={(e) => setMaxPrice(e.target.value)}
                 placeholder="e.g. 500"
@@ -689,20 +571,75 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
               />
             </div>
 
-            {/* Bags */}
-            <div className="md:col-span-3">
+            {/* Rating */}
+            <div className="md:col-span-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Carry-on Bags
+                Guest Rating
               </label>
               <select
-                value={bags}
-                onChange={(e) => setBags(parseInt(e.target.value))}
+                value={rating}
+                onChange={(e) => setRating(parseInt(e.target.value))}
                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               >
-                {[0, 1, 2].map(num => (
-                  <option key={num} value={num}>{num}</option>
-                ))}
+                <option value={0}>Any</option>
+                <option value={7}>3.5+</option>
+                <option value={8}>4.0+</option>
+                <option value={9}>4.5+</option>
               </select>
+            </div>
+
+            {/* Hotel Class */}
+            <div className="md:col-span-8">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Hotel Class (comma separated)
+              </label>
+              <select
+                value={hotelClass}
+                onChange={(e) => setHotelClass(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              >
+                <option value="">Any</option>
+                <option value="2">2-star</option>
+                <option value="3">3-star</option>
+                <option value="4">4-star</option>
+                <option value="5">5-star</option>
+                <option value="2,3">2 & 3-star</option>
+                <option value="4,5">4 & 5-star</option>
+              </select>
+            </div>
+
+            {/* Property Types */}
+            <div className="md:col-span-12">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Property Types (comma separated numbers)
+              </label>
+              <input
+                type="text"
+                value={propertyTypes}
+                onChange={(e) => setPropertyTypes(e.target.value)}
+                placeholder="e.g. 12,17,18 for Beach hotels, Resorts, Spa hotels"
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              />
+              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                12-Beach, 13-Boutique, 14-Hostels, 15-Inns, 16-Motels, 17-Resorts, 18-Spa, 19-B&B, 21-Apartment, 22-Minshuku, 23-Business, 24-Ryokan
+              </div>
+            </div>
+
+            {/* Amenities */}
+            <div className="md:col-span-12">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Amenities (comma separated numbers)
+              </label>
+              <input
+                type="text"
+                value={amenities}
+                onChange={(e) => setAmenities(e.target.value)}
+                placeholder="e.g. 6,9,35 for Pool, Free breakfast, Free Wi-Fi"
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              />
+              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                1-Free parking, 3-Parking, 6-Pool, 7-Fitness, 8-Restaurant, 9-Free breakfast, 10-Spa, 11-Beach, 15-Bar, 19-Pet-friendly, 35-Free Wi-Fi, 40-AC, 53-Accessible
+              </div>
             </div>
 
             {/* Toggle Options */}
@@ -711,76 +648,82 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
                 <label className="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300">
                   <input
                     type="checkbox"
-                    checked={showHidden}
-                    onChange={(e) => setShowHidden(e.target.checked)}
+                    checked={freeCancellation}
+                    onChange={(e) => setFreeCancellation(e.target.checked)}
                     className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
                   />
-                  <span>Show Hidden Results</span>
+                  <span>Free Cancellation</span>
                 </label>
                 
                 <label className="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300">
                   <input
                     type="checkbox"
-                    checked={deepSearch}
-                    onChange={(e) => setDeepSearch(e.target.checked)}
+                    checked={specialOffers}
+                    onChange={(e) => setSpecialOffers(e.target.checked)}
                     className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
                   />
-                  <span>Deep Search</span>
+                  <span>Special Offers</span>
                 </label>
                 
                 <label className="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300">
                   <input
                     type="checkbox"
-                    checked={emissions === 1}
-                    onChange={(e) => setEmissions(e.target.checked ? 1 : 0)}
+                    checked={ecoCertified}
+                    onChange={(e) => setEcoCertified(e.target.checked)}
                     className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
                   />
-                  <span>Lower Emissions Only</span>
+                  <span>Eco-Certified</span>
                 </label>
               </div>
             </div>
 
-            {/* Max Duration */}
-            <div className="md:col-span-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Max Duration (minutes)
+            {/* Vacation Rentals Toggle */}
+            <div className="md:col-span-12 mt-2">
+              <label className="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={vacationRentals}
+                  onChange={(e) => setVacationRentals(e.target.checked)}
+                  className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                />
+                <span>Search Vacation Rentals Instead of Hotels</span>
               </label>
-              <input
-                type="number"
-                value={maxDuration}
-                onChange={(e) => setMaxDuration(e.target.value)}
-                placeholder="e.g. 600"
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              />
             </div>
 
-            {/* Layover Duration */}
-            <div className="md:col-span-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Layover Duration (min,max)
-              </label>
-              <input
-                type="text"
-                value={layoverDuration}
-                onChange={(e) => setLayoverDuration(e.target.value)}
-                placeholder="e.g. 90,330"
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              />
-            </div>
+            {/* Vacation Rental Specific Options */}
+            {vacationRentals && (
+              <>
+                <div className="md:col-span-6">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Minimum Bedrooms
+                  </label>
+                  <select
+                    value={bedrooms}
+                    onChange={(e) => setBedrooms(parseInt(e.target.value))}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  >
+                    {[0, 1, 2, 3, 4, 5, 6].map(num => (
+                      <option key={num} value={num}>{num === 0 ? 'Any' : num}</option>
+                    ))}
+                  </select>
+                </div>
 
-            {/* Exclude Connections */}
-            <div className="md:col-span-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Exclude Connections
-              </label>
-              <input
-                type="text"
-                value={excludeConns}
-                onChange={(e) => setExcludeConns(e.target.value)}
-                placeholder="e.g. LHR,CDG"
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              />
-            </div>
+                <div className="md:col-span-6">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Minimum Bathrooms
+                  </label>
+                  <select
+                    value={bathrooms}
+                    onChange={(e) => setBathrooms(parseInt(e.target.value))}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  >
+                    {[0, 1, 2, 3, 4, 5].map(num => (
+                      <option key={num} value={num}>{num === 0 ? 'Any' : num}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
           </div>
         )}
       </form>
@@ -788,12 +731,12 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
   );
 };
 
-interface FlightSearchContainerProps {
+interface HotelSearchContainerProps {
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
 }
 
-export const FlightSearchContainer: React.FC<FlightSearchContainerProps> = ({ 
+export const HotelSearchContainer: React.FC<HotelSearchContainerProps> = ({ 
   isOpen, 
   setIsOpen 
 }) => {
@@ -801,13 +744,13 @@ export const FlightSearchContainer: React.FC<FlightSearchContainerProps> = ({
     <div className="relative">
       {!isOpen ? (
         <div className="flex justify-center py-3 border-b border-gray-200 dark:border-gray-700">
-          <FlightSearchButton 
+          <HotelSearchButton 
             onClick={() => setIsOpen(true)} 
             isOpen={isOpen}
           />
         </div>
       ) : (
-        <FlightSearchDropdown 
+        <HotelSearchDropdown 
           isOpen={isOpen} 
           onClose={() => setIsOpen(false)} 
         />
