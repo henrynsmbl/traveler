@@ -599,78 +599,60 @@ def lambda_handler(event, context):
         # parse the request body from API Gateway event
         body = json.loads(event.get('body', '{}'))
         
-        # get context and prompt from request body
+        # get context, prompt, and flight params from request body
         context = body.get('context', 'Be accurate and straightforward.')
         prompt = body.get('prompt', '')
+        flight_params = body.get('flightParams', {})
         
-        if not prompt:
-            raise ValueError("No prompt provided")
-
-        # extract conversation history from context
+        # Add this line after extracting prompt
         conversation_history = ""
         if "Previous conversation:" in context:
             # split on "Previous conversation:" and take everything after it
-            # then split on "Be accurate" and take everything before it
             history_parts = context.split("Previous conversation:", 1)
             if len(history_parts) > 1:
                 conversation_text = history_parts[1]
                 # further split to remove the trailing instruction if it exists
                 instruction_split = conversation_text.split("Be accurate", 1)
                 conversation_history = instruction_split[0].strip()
-                
-                # format the history nicely for debugging
-                print(f"Extracted conversation history:\n{conversation_history}")
         
-        # now get the response from analyze_intent
-        response = analyze_intent(
-            OPENAI_API_KEY, 
-            PERPLEXITY_API_KEY, 
-            SERPAI_API_KEY, 
-            prompt, 
-            conversation_history
-        )
-        
-        if all(not response.get(field) for field in ['response', 'flights', 'hotels']):
-            raise ValueError("No response received from analyze intent.")
-        
-        # see output in cloudwatch
-        print(response)
-
-        # append google flights and hotels links!
-        citations = response.get('citations', [])
-        if response.get('flights') and isinstance(response['flights'], dict):
-            search_metadata = response['flights'].get('search_metadata', {})
-            google_flights_url = search_metadata.get('google_flights_url')
-            if google_flights_url:
-                if google_flights_url.startswith('https://www.google.com/travel/flights'):
-                    citations.append(google_flights_url)
-                    print("GOOGLE FLIGHTS URL: ", google_flights_url)
-                else:
-                    print("The URL does not start with 'google/travel/flights':", google_flights_url)
-
-        if response.get('hotels') and isinstance(response['hotels'], dict):
-            search_metadata = response['hotels'].get('search_metadata', {})
-            google_hotels_url = search_metadata.get('google_hotels_url')
-            if google_hotels_url:
-                if google_hotels_url.startswith('https://www.google.com/travel/hotels'):
-                    citations.append(google_hotels_url)
-                    print("GOOGLE HOTELS URL: ", google_hotels_url)
-                else:
-                    print("The URL does not start with 'google/travel/hotels':", google_hotels_url)
+        # If flight params are provided, use them for flight search
+        if flight_params:
+            # Add the base parameters
+            base_flight_params = {
+                "api_key": SERPAI_API_KEY,
+                "engine": "google_flights",
+            }
             
-        # return formatted response
+            # Combine with the user-provided parameters
+            search_params = {**base_flight_params, **flight_params}
+            
+            # Call the search function with the combined parameters
+            flight_results = get_search_results(search_params)
+            
+            # Format the response
+            response = {
+                "response": f"Here are flights from {flight_params.get('departure_id')} to {flight_params.get('arrival_id')}",
+                "flights": flight_results,
+                "citations": []
+            }
+        else:
+            # Use the regular intent analysis for non-flight searches
+            response = analyze_intent(
+                OPENAI_API_KEY, 
+                PERPLEXITY_API_KEY, 
+                SERPAI_API_KEY, 
+                prompt, 
+                conversation_history
+            )
+        
+        # Return the response
         return {
             'statusCode': 200,
             'headers': {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             },
-            'body': json.dumps({
-                'citations': citations,
-                'response': response.get('response', ''),
-                'flights': response.get('flights', {}),
-                'hotels': response.get('hotels', {})
-            })
+            'body': json.dumps(response)
         }
         
     except Exception as e:

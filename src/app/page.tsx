@@ -19,6 +19,7 @@ import SelectionPopover from '@/components/chat/SelectionPopover'
 import { checkSubscription } from '@/lib/firebase/subscriptionFirestore'
 import { useRouter } from 'next/navigation'
 import MapComponent from '../components/map/MapComponent'
+import { FlightSearchContainer } from '../components/flight/FlightSearch'
 
 const WelcomeScreen = () => {
   const { user } = useAuth();
@@ -450,6 +451,7 @@ export default function Home() {
 
   const router = useRouter();
   const [isMapOpen, setIsMapOpen] = useState(false);
+  const [isFlightSearchOpen, setIsFlightSearchOpen] = useState(false);
 
   // Update the hotel data memoization to include all hotel messages
   const memoizedHotelData = useMemo(() => {
@@ -481,6 +483,15 @@ export default function Home() {
       <div className="flex h-[calc(100vh-64px)] pt-16">
         <div className={`flex-1 transition-margin duration-200 ease-in-out
             ${isSidebarOpen ? 'md:ml-64' : 'ml-0'} relative`}>
+          
+          {/* Add the flight search at the top */}
+          {user && currentSession && messages.length > 0 && (
+            <FlightSearchContainer 
+              isOpen={isFlightSearchOpen}
+              setIsOpen={setIsFlightSearchOpen}
+            />
+          )}
+          
           <main className={`h-full pb-24 ${currentSession && messages.length > 0 ? 'overflow-y-auto scrollbar-gutter-stable' : ''}`}>
             {!user ? (
               <WelcomeScreen />
