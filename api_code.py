@@ -364,23 +364,22 @@ def analyze_intent(OPENAI_API_KEY, PERPLEXITY_API_KEY, SERPAI_API_KEY, user_inpu
       The user has prompted you with the attached input seeking help and advice.
       
       If the user requests a full trip plan or asks for help planning a trip:
-      1. Always include both "flight" and "hotel" fields in the JSON with the following format:
-         - "flight" should contain: "Find flights to [destination] from [start] for dates [start_date] to [end_date]"
-         - "hotel" should contain: "Find hotels in [destination] for dates [start_date] to [end_date]"
-      2. Include the budget in the "budget" field
+      1. Include the budget in the "budget" field if the user mentions it
+      2. Include the flight and hotel in the "flight" and "hotel" fields if the user mentions it
       3. Add any specific requirements or preferences to the "notes" field
-      4. Include a general question about the destination in the "questions" field
+      4. Include a general question about the destination in the "questions" field that can be used as a search query
       5. If any required information is missing (like starting location):
          - Set "notes" to a clear question asking for the missing information
          - Example: "What is your starting location for the flights?"
          - Make the question specific and actionable
+         
 
       For example, if user says "Help plan trip to Paris for next week with $3000":
       
         "flight": "Flights to CDG from [start] for dates [dates]",
         "hotel": "Hotels in Paris for dates [dates]",
         "budget": "$3000",
-        "questions": "",
+        "questions": "Best things to do in Paris?",
         "notes": "What city would you like to fly from?"
       
 
