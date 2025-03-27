@@ -101,7 +101,6 @@ async function searchAPI(prompt: string, history: Message[]): Promise<SearchAPIR
     }
 
     const data = await response.json();
-    console.log('API Response:', data);
     
     // Check if the response is empty and provide a fallback
     if (!data.contents?.[0]?.content || data.contents[0].content.trim() === "") {

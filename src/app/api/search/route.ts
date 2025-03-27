@@ -92,7 +92,7 @@ export async function POST(request: Request) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey // Uncommented and using the environment variable
+        'x-api-key': apiKey 
       },
       body: JSON.stringify({ body: JSON.stringify(payload) })
     })

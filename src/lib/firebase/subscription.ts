@@ -25,15 +25,34 @@ export async function updateUserSubscription(userId: string, subscription: Subsc
     const userDoc = await getDoc(userRef);
     
     if (userDoc.exists()) {
+      // Ensure all timestamps are in seconds for consistency
+      const currentTimeInSeconds = Math.floor(Date.now() / 1000);
+      
+      // Normalize the subscription data
+      const normalizedSubscription = {
+        ...subscription,
+        // Ensure these fields exist and are in seconds
+        createdAt: subscription.createdAt || currentTimeInSeconds,
+        updatedAt: currentTimeInSeconds,
+        // Convert any millisecond timestamps to seconds if needed
+        currentPeriodEnd: typeof subscription.currentPeriodEnd === 'number' 
+          ? (subscription.currentPeriodEnd > 9999999999 
+              ? Math.floor(subscription.currentPeriodEnd / 1000) 
+              : subscription.currentPeriodEnd)
+          : currentTimeInSeconds + (30 * 24 * 60 * 60) // Default to 30 days if missing
+      };
+      
       // Update both the subscription object and individual fields for backward compatibility
       await updateDoc(userRef, {
-        subscription,
-        subscriptionStatus: subscription.status,
-        subscriptionTier: 'ultimate', // Adjust based on your tiers
-        stripeCustomerId: subscription.customerId,
-        stripeSubscriptionId: subscription.subscriptionId,
-        subscriptionStartDate: new Date(subscription.createdAt * 1000).toISOString(),
-        subscriptionEndDate: new Date(subscription.currentPeriodEnd * 1000).toISOString(),
+        subscription: normalizedSubscription,
+        subscriptionStatus: normalizedSubscription.status,
+        subscriptionTier: normalizedSubscription.plan.includes('price_') 
+          ? 'ultimate' // Default to 'ultimate' for price IDs
+          : normalizedSubscription.plan,
+        stripeCustomerId: normalizedSubscription.customerId,
+        stripeSubscriptionId: normalizedSubscription.subscriptionId,
+        subscriptionStartDate: new Date(normalizedSubscription.createdAt * 1000).toISOString(),
+        subscriptionEndDate: new Date(normalizedSubscription.currentPeriodEnd * 1000).toISOString(),
       });
       console.log(`Successfully updated subscription for user ${userId}`);
     } else {
