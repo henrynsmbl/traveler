@@ -5,7 +5,9 @@ import { useAuth } from '../../components/auth/AuthContext';
 import { RequireAuth } from '../../components/auth/RequireAuth';
 import { getUserSubscription } from '@/lib/firebase/subscription';
 import Link from 'next/link';
-import { CreditCard, Settings, User } from 'lucide-react';
+import { CreditCard, Settings, User, BookOpen, LogOut } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { getUserProfile } from '@/lib/firebase/db';
 
 interface SubscriptionInfo {
   status: string;
@@ -24,10 +26,12 @@ const getPlanName = (priceId: string) => {
 };
 
 const AccountPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+  const router = useRouter();
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [profile, setProfile] = useState<any>(null);
 
   useEffect(() => {
     async function loadSubscription() {
@@ -45,6 +49,27 @@ const AccountPage: React.FC = () => {
 
     loadSubscription();
   }, [user]);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user?.uid) {
+        router.push('/');
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const userProfile = await getUserProfile(user.uid);
+        setProfile(userProfile);
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [user, router]);
 
   const handleManageSubscription = async () => {
     try {
@@ -86,21 +111,19 @@ const AccountPage: React.FC = () => {
     }
   };
 
-  if (!user) {
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      router.push('/');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
-        <div className="text-center bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg p-8 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-700">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-500 inline-block text-transparent bg-clip-text mb-4">
-            Sign in Required
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">Please log in to view your account details</p>
-          <Link 
-            href="/signin" 
-            className="inline-flex px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-500 text-white rounded-xl hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
-          >
-            Sign In
-          </Link>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
   }
@@ -217,6 +240,30 @@ const AccountPage: React.FC = () => {
                   )}
                 </div>
               )}
+            </div>
+
+            {/* Travel Section */}
+            <div className="mt-6">
+              <h2 className="text-lg font-medium mb-4">Your Travel</h2>
+              <div className="space-y-3">
+                <Link 
+                  href="/my-itineraries"
+                  className="flex items-center justify-between w-full p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-full">
+                      <BookOpen className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium">My Saved Itineraries</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">View and manage your saved travel plans</p>
+                    </div>
+                  </div>
+                  <div className="text-blue-600 dark:text-blue-400">
+                    View →
+                  </div>
+                </Link>
+              </div>
             </div>
           </div>
         </div>

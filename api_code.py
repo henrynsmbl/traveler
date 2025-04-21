@@ -205,6 +205,10 @@ def build_flight_search_params(OPENAI_API_KEY, user_input):
             print(f"Missing required parameters: {missing_params}")
             return {}
             
+        # Set default type to oneway (2) if not specified
+        if 'type' not in params_dict:
+            params_dict['type'] = 2  # Default to oneway
+            
         print(f"Gathered Params:\n{params_dict}")
         return params_dict
         
@@ -364,16 +368,15 @@ def analyze_intent(OPENAI_API_KEY, PERPLEXITY_API_KEY, SERPAI_API_KEY, user_inpu
       The user has prompted you with the attached input seeking help and advice.
       
       If the user requests a full trip plan or asks for help planning a trip:
-      1. Include the budget in the "budget" field if the user mentions it
-      2. Include the flight and hotel in the "flight" and "hotel" fields if the user mentions it
-      3. Add any specific requirements or preferences to the "notes" field
-      4. Include a general question about the destination in the "questions" field that can be used as a search query
-      5. If any required information is missing (like starting location):
+      1. Include the flight and hotel in the "flight" and "hotel" fields if the user mentions it
+      2. Add any specific requirements or preferences to the "notes" field
+      3. Include a general question about the destination in the "questions" field that can be used as a search query, unrelated to the flight or hotel
+      4. If any required information is missing (like starting location):
          - Set "notes" to a clear question asking for the missing information
          - Example: "What is your starting location for the flights?"
          - Make the question specific and actionable
+      5. If the user mentions a budget, include it in the "budget" field
          
-
       For example, if user says "Help plan trip to Paris for next week with $3000":
       
         "flight": "Flights to CDG from [start] for dates [dates]",
@@ -382,7 +385,6 @@ def analyze_intent(OPENAI_API_KEY, PERPLEXITY_API_KEY, SERPAI_API_KEY, user_inpu
         "questions": "Best things to do in Paris?",
         "notes": "What city would you like to fly from?"
       
-
       If the user provides all required information, in that above example, then return:
       
         "flight": "Find flights to Paris from New York for dates [dates]",
@@ -390,7 +392,14 @@ def analyze_intent(OPENAI_API_KEY, PERPLEXITY_API_KEY, SERPAI_API_KEY, user_inpu
         "budget": "$3000",
         "questions": "What are the best things to do in Paris?",
         "notes": ""
-      
+
+      For another example, if the user says "Help me plan an entire itinerary to Paris for 3 months":
+      Since the user didn't mention any budget, flights, hotels, just return the following:
+
+        "questions": "Help me plan an entire itinerary to Paris for 3 months"
+
+      Consider the questions section to be a general search query that can be used to find information online.
+
       If the user just asked a question help me generate the following json and parse the input into the following categories:
       "questions": put any question the user asked here
 
@@ -612,7 +621,7 @@ def lambda_handler(event, context):
         # Add an explicit flag to identify the source of the request
         is_direct_flight_search = body.get('isDirectFlightSearch', False)
         
-        # Add this line after extracting prompt
+        # Extract conversation history
         conversation_history = ""
         if "Previous conversation:" in context:
             # split on "Previous conversation:" and take everything after it
@@ -631,6 +640,10 @@ def lambda_handler(event, context):
                 "api_key": SERPAI_API_KEY,
                 "engine": "google_flights",
             }
+            
+            # Set default type to oneway (2) if not specified
+            if 'type' not in flight_params:
+                flight_params['type'] = 2  # Default to oneway
             
             # Combine with the user-provided parameters
             search_params = {**base_flight_params, **flight_params}
@@ -655,6 +668,28 @@ def lambda_handler(event, context):
                 conversation_history
             )
         
+        # append google flights and hotels links!
+        citations = response.get('citations', [])
+        if response.get('flights') and isinstance(response['flights'], dict):
+            search_metadata = response['flights'].get('search_metadata', {})
+            google_flights_url = search_metadata.get('google_flights_url')
+            if google_flights_url:
+                if google_flights_url.startswith('https://www.google.com/travel/flights'):
+                    citations.append(google_flights_url)
+                    print("GOOGLE FLIGHTS URL: ", google_flights_url)
+                else:
+                    print("The URL does not start with 'google/travel/flights':", google_flights_url)
+
+        if response.get('hotels') and isinstance(response['hotels'], dict):
+            search_metadata = response['hotels'].get('search_metadata', {})
+            google_hotels_url = search_metadata.get('google_hotels_url')
+            if google_hotels_url:
+                if google_hotels_url.startswith('https://www.google.com/travel/hotels'):
+                    citations.append(google_hotels_url)
+                    print("GOOGLE HOTELS URL: ", google_hotels_url)
+                else:
+                    print("The URL does not start with 'google/travel/hotels':", google_hotels_url)
+            
         # Return the response
         return {
             'statusCode': 200,
@@ -662,7 +697,12 @@ def lambda_handler(event, context):
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             },
-            'body': json.dumps(response)
+            'body': json.dumps({
+                'citations': citations,
+                'response': response.get('response', ''),
+                'flights': response.get('flights', {}),
+                'hotels': response.get('hotels', {})
+            })
         }
         
     except Exception as e:

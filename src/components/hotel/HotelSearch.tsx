@@ -5,6 +5,7 @@ import { Plane, Filter, ChevronDown, ChevronUp } from 'lucide-react'
 import { useAuth } from '../../components/auth/AuthContext';
 import { useChatSessions } from '../../components/chat/ChatContext';
 import { ContentType } from '../../types/messages';
+import { useRouter } from 'next/router';
 
 // Sample airport data - in a real app, you'd fetch this from an API
 const AIRPORTS = [
@@ -167,6 +168,7 @@ interface HotelSearchDropdownProps {
 export const HotelSearchDropdown: React.FC<HotelSearchDropdownProps> = ({ isOpen, onClose }) => {
   const { user } = useAuth();
   const { currentSession, updateCurrentSession } = useChatSessions();
+  const router = useRouter();
   
   // Add loading state
   const [isLoading, setIsLoading] = useState(false);
@@ -375,6 +377,12 @@ export const HotelSearchDropdown: React.FC<HotelSearchDropdownProps> = ({ isOpen
     }
   };
 
+  const handleSelectHotel = (hotel: any) => {
+    // Implement the logic to handle selecting a hotel
+    console.log("Selected hotel:", hotel);
+    router.push('/itinerary');
+  };
+
   return (
     <div className="absolute top-0 left-0 right-0 bg-white dark:bg-gray-800 shadow-md z-50 border-b border-gray-200 dark:border-gray-700">
       <form onSubmit={handleSubmit} className="max-w-5xl mx-auto p-4">
@@ -474,17 +482,32 @@ export const HotelSearchDropdown: React.FC<HotelSearchDropdownProps> = ({ isOpen
         
         {/* Children ages input - only show if children > 0 */}
         {children > 0 && (
-          <div className="mt-3">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Children Ages (comma separated, e.g. 5,7,12)
-            </label>
-            <input
-              type="text"
-              value={childrenAges}
-              onChange={(e) => setChildrenAges(e.target.value)}
-              placeholder="e.g. 5,7,12"
-              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-            />
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-12 gap-3">
+            <div className="md:col-span-12">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Children Ages
+              </label>
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+                {Array.from({ length: children }).map((_, index) => (
+                  <div key={index}>
+                    <select
+                      onChange={(e) => {
+                        const ages = childrenAges.split(',').filter(age => age.trim() !== '');
+                        ages[index] = e.target.value;
+                        setChildrenAges(ages.join(','));
+                      }}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                      defaultValue=""
+                    >
+                      <option value="" disabled>Age of child {index + 1}</option>
+                      {Array.from({ length: 18 }).map((_, age) => (
+                        <option key={age} value={age}>{age} {age === 1 ? 'year' : 'years'}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
         
@@ -537,10 +560,10 @@ export const HotelSearchDropdown: React.FC<HotelSearchDropdownProps> = ({ isOpen
                 onChange={(e) => setSortBy(parseInt(e.target.value))}
                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               >
-                <option value={0}>Relevance</option>
-                <option value={3}>Lowest price</option>
-                <option value={8}>Highest rating</option>
-                <option value={13}>Most reviewed</option>
+                <option value={0}>Relevance (Default)</option>
+                <option value={3}>Price: Low to High</option>
+                <option value={8}>Rating: High to Low</option>
+                <option value={13}>Most Reviewed</option>
               </select>
             </div>
 
@@ -591,54 +614,175 @@ export const HotelSearchDropdown: React.FC<HotelSearchDropdownProps> = ({ isOpen
             {/* Hotel Class */}
             <div className="md:col-span-8">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Hotel Class (comma separated)
+                Hotel Class
               </label>
-              <select
-                value={hotelClass}
-                onChange={(e) => setHotelClass(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              >
-                <option value="">Any</option>
-                <option value="2">2-star</option>
-                <option value="3">3-star</option>
-                <option value="4">4-star</option>
-                <option value="5">5-star</option>
-                <option value="2,3">2 & 3-star</option>
-                <option value="4,5">4 & 5-star</option>
-              </select>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {[
+                  { id: "2", label: "2-star" },
+                  { id: "3", label: "3-star" },
+                  { id: "4", label: "4-star" },
+                  { id: "5", label: "5-star" }
+                ].map(classOption => {
+                  const isSelected = hotelClass.split(',').includes(classOption.id);
+                  return (
+                    <button
+                      key={classOption.id}
+                      type="button"
+                      onClick={() => {
+                        const currentClasses = hotelClass.split(',').filter(c => c !== '');
+                        if (isSelected) {
+                          setHotelClass(currentClasses.filter(c => c !== classOption.id).join(','));
+                        } else {
+                          setHotelClass([...currentClasses, classOption.id].join(','));
+                        }
+                      }}
+                      className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
+                        isSelected 
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-300 dark:border-blue-700' 
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200 border-gray-300 dark:border-gray-700'
+                      } border`}
+                    >
+                      {classOption.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Property Types */}
             <div className="md:col-span-12">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Property Types (comma separated numbers)
+                Property Types
               </label>
-              <input
-                type="text"
-                value={propertyTypes}
-                onChange={(e) => setPropertyTypes(e.target.value)}
-                placeholder="e.g. 12,17,18 for Beach hotels, Resorts, Spa hotels"
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              />
-              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                12-Beach, 13-Boutique, 14-Hostels, 15-Inns, 16-Motels, 17-Resorts, 18-Spa, 19-B&B, 21-Apartment, 22-Minshuku, 23-Business, 24-Ryokan
+              <div className="flex flex-wrap gap-2 mt-1">
+                {[
+                  { id: "12", label: "Beach hotels" },
+                  { id: "13", label: "Boutique hotels" },
+                  { id: "14", label: "Hostels" },
+                  { id: "15", label: "Inns" },
+                  { id: "16", label: "Motels" },
+                  { id: "17", label: "Resorts" },
+                  { id: "18", label: "Spa hotels" },
+                  { id: "19", label: "Bed & Breakfasts" },
+                  { id: "21", label: "Apartments" },
+                  { id: "22", label: "Minshuku" },
+                  { id: "23", label: "Business hotels" },
+                  { id: "24", label: "Ryokan" }
+                ].map(type => {
+                  const isSelected = propertyTypes.split(',').includes(type.id);
+                  return (
+                    <button
+                      key={type.id}
+                      type="button"
+                      onClick={() => {
+                        const currentTypes = propertyTypes.split(',').filter(t => t !== '');
+                        if (isSelected) {
+                          setPropertyTypes(currentTypes.filter(t => t !== type.id).join(','));
+                        } else {
+                          setPropertyTypes([...currentTypes, type.id].join(','));
+                        }
+                      }}
+                      className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
+                        isSelected 
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-300 dark:border-blue-700' 
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200 border-gray-300 dark:border-gray-700'
+                      } border`}
+                    >
+                      {type.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             {/* Amenities */}
+            <div className="md:col-span-12 mt-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Amenities
+              </label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {[
+                  { id: "1", label: "Free parking" },
+                  { id: "3", label: "Parking" },
+                  { id: "6", label: "Pool" },
+                  { id: "7", label: "Fitness center" },
+                  { id: "8", label: "Restaurant" },
+                  { id: "9", label: "Free breakfast" },
+                  { id: "10", label: "Spa" },
+                  { id: "11", label: "Beach" },
+                  { id: "15", label: "Bar" },
+                  { id: "19", label: "Pet-friendly" },
+                  { id: "35", label: "Free Wi-Fi" },
+                  { id: "40", label: "Air conditioning" },
+                  { id: "53", label: "Accessible" }
+                ].map(amenity => {
+                  const isSelected = amenities.split(',').includes(amenity.id);
+                  return (
+                    <button
+                      key={amenity.id}
+                      type="button"
+                      onClick={() => {
+                        const currentAmenities = amenities.split(',').filter(a => a !== '');
+                        if (isSelected) {
+                          setAmenities(currentAmenities.filter(a => a !== amenity.id).join(','));
+                        } else {
+                          setAmenities([...currentAmenities, amenity.id].join(','));
+                        }
+                      }}
+                      className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
+                        isSelected 
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-300 dark:border-blue-700' 
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200 border-gray-300 dark:border-gray-700'
+                      } border`}
+                    >
+                      {amenity.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Hotel Brands */}
             <div className="md:col-span-12">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Amenities (comma separated numbers)
+                Hotel Brands
               </label>
-              <input
-                type="text"
-                value={amenities}
-                onChange={(e) => setAmenities(e.target.value)}
-                placeholder="e.g. 6,9,35 for Pool, Free breakfast, Free Wi-Fi"
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              />
-              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                1-Free parking, 3-Parking, 6-Pool, 7-Fitness, 8-Restaurant, 9-Free breakfast, 10-Spa, 11-Beach, 15-Bar, 19-Pet-friendly, 35-Free Wi-Fi, 40-AC, 53-Accessible
+              <div className="flex flex-wrap gap-2 mt-1">
+                {[
+                  { id: "hilton", label: "Hilton" },
+                  { id: "marriott", label: "Marriott" },
+                  { id: "hyatt", label: "Hyatt" },
+                  { id: "ihg", label: "IHG" },
+                  { id: "accor", label: "Accor" },
+                  { id: "wyndham", label: "Wyndham" },
+                  { id: "best_western", label: "Best Western" },
+                  { id: "choice", label: "Choice Hotels" },
+                  { id: "radisson", label: "Radisson" },
+                  { id: "four_seasons", label: "Four Seasons" }
+                ].map(brand => {
+                  const isSelected = brands.split(',').includes(brand.id);
+                  return (
+                    <button
+                      key={brand.id}
+                      type="button"
+                      onClick={() => {
+                        const currentBrands = brands.split(',').filter(b => b !== '');
+                        if (isSelected) {
+                          setBrands(currentBrands.filter(b => b !== brand.id).join(','));
+                        } else {
+                          setBrands([...currentBrands, brand.id].join(','));
+                        }
+                      }}
+                      className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
+                        isSelected 
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-300 dark:border-blue-700' 
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200 border-gray-300 dark:border-gray-700'
+                      } border`}
+                    >
+                      {brand.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

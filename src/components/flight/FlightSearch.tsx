@@ -1,10 +1,11 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
-import { Plane, Filter, ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useAuth } from '../../components/auth/AuthContext';
 import { useChatSessions } from '../../components/chat/ChatContext';
 import { ContentType } from '../../types/messages';
+import { useRouter } from 'next/router';
 
 // Sample airport data - in a real app, you'd fetch this from an API
 const AIRPORTS = [
@@ -167,6 +168,7 @@ interface FlightSearchDropdownProps {
 export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOpen, onClose }) => {
   const { user } = useAuth();
   const { currentSession, updateCurrentSession } = useChatSessions();
+  const router = useRouter();
   
   // Add loading state
   const [isLoading, setIsLoading] = useState(false);
@@ -223,24 +225,33 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
     if (destination) flightParams.arrival_id = destination;
     if (departDate) flightParams.outbound_date = departDate;
     if (tripType === 'roundtrip' && returnDate) flightParams.return_date = returnDate;
-    flightParams.type = tripType === 'roundtrip' ? 1 : 2;
     
-    // Add additional parameters
+    // Map tripType to the correct integer value
+    flightParams.type = tripType === 'roundtrip' ? 1 : 2; // 1 for Round trip, 2 for One way
+    
+    // Add additional parameters with correct mapping
     flightParams.gl = countryCode;
     flightParams.hl = languageCode;
     flightParams.currency = currency;
-    flightParams.adults = passengers;
+    flightParams.adults = parseInt(passengers.toString()); // Ensure it's a number
     
-    // Add new parameters
-    flightParams.travel_class = travelClass;
-    if (showHidden) flightParams.show_hidden = showHidden;
-    if (deepSearch) flightParams.deep_search = deepSearch;
-    if (children > 0) flightParams.children = children;
-    if (infantsInSeat > 0) flightParams.infants_in_seat = infantsInSeat;
-    if (infantsOnLap > 0) flightParams.infants_on_lap = infantsOnLap;
-    flightParams.sort_by = sortBy;
-    flightParams.stops = stops;
+    // Map travel class to the correct integer value (already correct in the UI)
+    flightParams.travel_class = parseInt(travelClass.toString()); // Ensure it's a number
     
+    // Add other parameters with correct mapping
+    if (showHidden) flightParams.show_hidden = Boolean(showHidden);
+    if (deepSearch) flightParams.deep_search = Boolean(deepSearch);
+    if (children > 0) flightParams.children = parseInt(children.toString());
+    if (infantsInSeat > 0) flightParams.infants_in_seat = parseInt(infantsInSeat.toString());
+    if (infantsOnLap > 0) flightParams.infants_on_lap = parseInt(infantsOnLap.toString());
+    
+    // Map sort_by to the correct integer value
+    flightParams.sort_by = parseInt(sortBy.toString()); // Ensure it's a number
+    
+    // Map stops to the correct integer value
+    flightParams.stops = parseInt(stops.toString()); // Ensure it's a number
+    
+    // Handle airlines inclusion/exclusion
     if (airlines) {
       if (excludeAirlines) {
         flightParams.exclude_airlines = airlines;
@@ -249,19 +260,63 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
       }
     }
     
-    if (bags > 0) flightParams.bags = bags;
-    if (maxPrice) flightParams.max_price = maxPrice;
+    // Map bags to the correct integer value
+    if (bags > 0) flightParams.bags = parseInt(bags.toString());
+    
+    // Handle max_price as integer
+    if (maxPrice) {
+      const maxPriceInt = parseInt(maxPrice);
+      if (!isNaN(maxPriceInt)) {
+        flightParams.max_price = maxPriceInt;
+      }
+    }
+    
+    // Handle outbound_times and return_times
     if (outboundTimes) flightParams.outbound_times = outboundTimes;
     if (returnTimes && tripType === 'roundtrip') flightParams.return_times = returnTimes;
-    if (emissions === 1) flightParams.emissions = emissions;
-    if (layoverDuration) flightParams.layover_duration = layoverDuration;
-    if (excludeConns) flightParams.exclude_conns = excludeConns;
-    if (maxDuration) flightParams.max_duration = parseInt(maxDuration);
     
+    // Handle emissions
+    if (emissions === 1) flightParams.emissions = parseInt(emissions.toString());
+    
+    // Handle layover_duration (format: min,max)
+    if (layoverDuration) flightParams.layover_duration = layoverDuration;
+    
+    // Handle exclude_conns
+    if (excludeConns) flightParams.exclude_conns = excludeConns;
+    
+    // Handle max_duration as integer
+    if (maxDuration) {
+      const maxDurationInt = parseInt(maxDuration);
+      if (!isNaN(maxDurationInt)) {
+        flightParams.max_duration = maxDurationInt;
+      }
+    }
+    
+    // Log the final parameters for debugging
     console.log("Flight search parameters:", flightParams);
+    console.log("Travel class:", flightParams.travel_class, "type:", typeof flightParams.travel_class);
+    console.log("Bags:", flightParams.bags, "type:", typeof flightParams.bags);
+    console.log("Stops:", flightParams.stops, "type:", typeof flightParams.stops);
     
     // Create a user-friendly search query for the API
-    const searchQuery = `Manual search from ${origin} to ${destination}`;
+    let searchQuery = `Manual search from ${origin} to ${destination}`;
+    
+    // Add class information to the search query for better context
+    if (flightParams.travel_class) {
+      const classNames: Record<number, string> = {1: "Economy", 2: "Premium Economy", 3: "Business", 4: "First"};
+      searchQuery += ` in ${classNames[flightParams.travel_class as keyof typeof classNames] || "Economy"} class`;
+    }
+    
+    // Add stops information
+    if (flightParams.stops) {
+      const stopsDesc: Record<number, string> = {0: "any number of stops", 1: "nonstop only", 2: "1 stop or fewer", 3: "2 stops or fewer"};
+      searchQuery += ` with ${stopsDesc[flightParams.stops as keyof typeof stopsDesc] || "any number of stops"}`;
+    }
+    
+    // Add bags information
+    if (flightParams.bags) {
+      searchQuery += ` with ${flightParams.bags} carry-on bag${flightParams.bags > 1 ? 's' : ''}`;
+    }
     
     // Define userMessage outside the try block so it's accessible in the catch block
     const userMessage = {
@@ -390,6 +445,10 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
       // Set loading state back to false
       setIsLoading(false);
     }
+  };
+
+  const handleSelectFlight = (flight: any) => {
+    // Implementation of handleSelectFlight
   };
 
   return (
@@ -653,29 +712,6 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
               <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Advanced Filters</h4>
             </div>
 
-            {/* Airlines */}
-            <div className="md:col-span-6">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {excludeAirlines ? 'Exclude Airlines' : 'Include Airlines'} (comma-separated codes)
-              </label>
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  value={airlines}
-                  onChange={(e) => setAirlines(e.target.value)}
-                  placeholder="e.g. AA,DL,UA"
-                  className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                />
-                <button
-                  type="button"
-                  onClick={() => setExcludeAirlines(!excludeAirlines)}
-                  className="px-3 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 text-sm font-medium rounded-md"
-                >
-                  {excludeAirlines ? 'Switch to Include' : 'Switch to Exclude'}
-                </button>
-              </div>
-            </div>
-
             {/* Max Price */}
             <div className="md:col-span-3">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -706,41 +742,6 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
               </select>
             </div>
 
-            {/* Toggle Options */}
-            <div className="md:col-span-12 mt-2">
-              <div className="flex flex-wrap gap-4">
-                <label className="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300">
-                  <input
-                    type="checkbox"
-                    checked={showHidden}
-                    onChange={(e) => setShowHidden(e.target.checked)}
-                    className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span>Show Hidden Results</span>
-                </label>
-                
-                <label className="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300">
-                  <input
-                    type="checkbox"
-                    checked={deepSearch}
-                    onChange={(e) => setDeepSearch(e.target.checked)}
-                    className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span>Deep Search</span>
-                </label>
-                
-                <label className="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300">
-                  <input
-                    type="checkbox"
-                    checked={emissions === 1}
-                    onChange={(e) => setEmissions(e.target.checked ? 1 : 0)}
-                    className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span>Lower Emissions Only</span>
-                </label>
-              </div>
-            </div>
-
             {/* Max Duration */}
             <div className="md:col-span-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -765,20 +766,6 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
                 value={layoverDuration}
                 onChange={(e) => setLayoverDuration(e.target.value)}
                 placeholder="e.g. 90,330"
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              />
-            </div>
-
-            {/* Exclude Connections */}
-            <div className="md:col-span-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Exclude Connections
-              </label>
-              <input
-                type="text"
-                value={excludeConns}
-                onChange={(e) => setExcludeConns(e.target.value)}
-                placeholder="e.g. LHR,CDG"
                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               />
             </div>

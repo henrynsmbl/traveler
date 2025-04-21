@@ -109,7 +109,7 @@ async function searchAPI(prompt: string, history: Message[]): Promise<SearchAPIR
     console.log("searchAPI - API response:", data);
     
     // Check if the response is empty and provide a fallback
-    if (!data.contents?.[0]?.content || data.contents[0].content.trim() === "") {
+    if (!data.contents?.[0]?.content && !data.contents?.[0]?.flights) {
       console.warn('Empty response from API, using fallback');
       return {
         citations: [],
@@ -127,7 +127,7 @@ async function searchAPI(prompt: string, history: Message[]): Promise<SearchAPIR
     // Extract the relevant fields from the response
     return {
       citations: data.contents?.[0]?.citations || [],
-      response: data.contents?.[0]?.content || "",
+      response: data.contents?.[0]?.content || "Here are your search results.",
       flights: data.contents?.[0]?.flights || undefined,
       hotels: data.contents?.[0]?.hotels || undefined
     };
