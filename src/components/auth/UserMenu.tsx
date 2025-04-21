@@ -5,6 +5,8 @@ import { useAuth } from './AuthContext'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { LogOut, Settings, User } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { ADMIN_EMAILS } from '@/lib/constants'
 
 export const UserMenu = () => {
   const { user, signOut } = useAuth()
@@ -12,6 +14,8 @@ export const UserMenu = () => {
   
   // Get username from email (everything before @)
   const username = user?.email?.split('@')[0] || 'User'
+
+  const isAdmin = user?.email && ADMIN_EMAILS.includes(user.email)
 
   return (
     <DropdownMenu.Root>
@@ -37,8 +41,16 @@ export const UserMenu = () => {
             className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md cursor-pointer"
           >
             <User size={16} />
-            <span>Profile</span>
+            <span>Account</span>
           </DropdownMenu.Item>
+          {isAdmin && (
+            <DropdownMenu.Item 
+              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              <Settings className="h-4 w-4" />
+              Admin Dashboard
+            </DropdownMenu.Item>
+          )}
           <DropdownMenu.Separator className="h-px bg-gray-200 dark:bg-gray-700 my-1" />
           <DropdownMenu.Item 
             onClick={signOut}

@@ -1,11 +1,12 @@
 import React from 'react';
-import { Menu, X, MessageSquare, Clock, Trash2, Home, User, CreditCard, Info } from 'lucide-react';
+import { Menu, X, MessageSquare, Clock, Trash2, Home, User, CreditCard, Info, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { UserMenu } from '../auth/UserMenu';
 import { AuthButton } from '../auth/AuthButton';
 import { useAuth } from '../auth/AuthContext';
 import type { ChatSession } from '@/types/chat';
 import { usePathname } from 'next/navigation';
+import { ADMIN_EMAILS } from '@/lib/constants';
 
 interface NavbarProps {
   isSidebarOpen: boolean;
@@ -65,6 +66,8 @@ const Navbar: React.FC<NavbarProps> = ({
     !item.requireAuth || (item.requireAuth && user)
   );
 
+  const isAdmin = user?.email && ADMIN_EMAILS.includes(user.email);
+
   return (
     <>
       <nav className="fixed top-0 left-0 right-0 h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-50 shadow-sm">
@@ -95,7 +98,26 @@ const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           <div className="w-[64px] flex justify-end flex-none z-[60]">
-            {user ? <UserMenu /> : (!isSignInPage && <AuthButton />)}
+            {user ? (
+              <div className="relative">
+                <UserMenu />
+                {isAdmin && (
+                  <div className="absolute top-14 right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 z-50">
+                    <Link
+                      href="/admin/bookings"
+                      className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      <div className="flex items-center">
+                        <Settings className="h-4 w-4 mr-2" />
+                        Admin Dashboard
+                      </div>
+                    </Link>
+                  </div>
+                )}
+              </div>
+            ) : (
+              !isSignInPage && <AuthButton />
+            )}
           </div>
         </div>
       </nav>

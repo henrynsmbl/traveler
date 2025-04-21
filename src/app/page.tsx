@@ -193,17 +193,32 @@ export default function Home() {
     }
   }, [user]);
 
-  // Add this state to track the latest user message
-  const [latestUserMessageRef, setLatestUserMessageRef] = useState<HTMLDivElement | null>(null);
-
-  // Replace the current useEffect for scrolling
+  // Enhance the scrolling behavior with a more robust approach
   useEffect(() => {
-    // When a new user message is added, scroll to that message instead of the bottom
-    if (latestUserMessageRef && messages.length > 0 && messages[messages.length - 1].isUser) {
-      latestUserMessageRef.scrollIntoView({ behavior: 'smooth' });
+    // Scroll to the bottom whenever messages change or when the page loads
+    if (messages.length > 0) {
+      // Use a longer timeout to ensure all content (including rich content) has rendered
+      const scrollTimer = setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+      }, 300); // Longer timeout to ensure everything is rendered
+      
+      return () => clearTimeout(scrollTimer);
     }
-    // When an AI response comes in, don't auto-scroll
-  }, [messages, latestUserMessageRef]);
+  }, [messages]);
+
+  // Also scroll when loading state changes (after API response completes)
+  useEffect(() => {
+    if (!isLoading && messages.length > 0) {
+      // Scroll after loading completes
+      setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+      }, 300);
+    }
+  }, [isLoading, messages.length]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -563,12 +578,6 @@ export default function Home() {
                     <div
                       key={generateMessageKey(message, index)}
                       className={`${message.isUser ? 'flex justify-end' : 'w-full'} mb-4`}
-                      ref={node => {
-                        // If this is the latest user message, store a reference to it
-                        if (message.isUser && index === messages.length - 1) {
-                          setLatestUserMessageRef(node);
-                        }
-                      }}
                     >
                       <div
                         className={`${
@@ -633,7 +642,13 @@ export default function Home() {
                       </button>
                       
                       <form onSubmit={handleSubmit}>
-                        <div className="flex items-end bg-white dark:bg-gray-800 rounded-full border border-gray-300 dark:border-gray-600 pr-3 pl-4 py-2">
+                        <div 
+                          className={`flex items-end bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 pr-3 pl-4 py-2 transition-all duration-200 ${
+                            currentInput.split('\n').length > 1 || currentInput.length > 50 
+                              ? 'rounded-xl' // Less rounded when expanded
+                              : 'rounded-full' // Fully rounded when empty/short
+                          }`}
+                        >
                           <textarea
                             ref={inputRef}
                             value={currentInput}

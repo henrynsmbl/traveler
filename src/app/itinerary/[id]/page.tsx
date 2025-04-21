@@ -1,13 +1,14 @@
 'use client'
 
-import React, { useEffect, useState, use } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthContext';
 import { format } from 'date-fns';
-import { ArrowLeft, Calendar, MapPin, Plane, Hotel, Bookmark } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Plane, Hotel, Bookmark, Send, Save, X } from 'lucide-react';
 import type { Selection, FlightSelection, HotelSelection, ActivitySelection } from '@/types/selections';
 import type { DateRange } from 'react-day-picker';
 import { getItinerary, SavedItinerary } from '@/lib/firebase/itineraries';
+import { createBooking, calculateItineraryTotal } from '@/lib/firebase/bookings';
 
 // Import the same helper functions from your itinerary page
 const formatDuration = (minutes: number): string => {
@@ -56,10 +57,12 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
   const [itinerary, setItinerary] = useState<SavedItinerary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [bookModalOpen, setBookModalOpen] = useState(false);
+  const [isBooking, setIsBooking] = useState(false);
+  const [bookingError, setBookingError] = useState('');
   
-  // Properly unwrap params using React.use()
-  const resolvedParams = params instanceof Promise ? use(params) : params;
-  const itineraryId = resolvedParams.id;
+  // Unwrap params if it's a Promise
+  const itineraryId = params instanceof Promise ? React.use(params).id : params.id;
 
   useEffect(() => {
     const fetchItinerary = async () => {
@@ -133,6 +136,48 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
     const bTime = new Date(b.data.flights[0].departure_airport.time).getTime();
     return aTime - bTime;
   });
+
+  const handleBookItinerary = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!user) {
+      setBookingError('Please sign in to book your itinerary');
+      return;
+    }
+    
+    if (!itinerary) {
+      setBookingError('Itinerary not found');
+      return;
+    }
+    
+    try {
+      setIsBooking(true);
+      setBookingError('');
+      
+      // Calculate total price
+      const totalPrice = calculateItineraryTotal(itinerary.selections, itinerary.hotelDates);
+      
+      // Create booking in Firebase
+      const bookingId = await createBooking(
+        user.uid,
+        user.email || 'unknown@example.com',
+        user.displayName || 'Anonymous User',
+        itinerary.id,
+        itinerary.name,
+        itinerary.selections,
+        itinerary.hotelDates,
+        totalPrice
+      );
+      
+      // Navigate to the booking status page
+      router.push(`/booking/${bookingId}`);
+      
+    } catch (error) {
+      console.error('Error creating booking:', error);
+      setBookingError('Failed to create booking. Please try again.');
+      setIsBooking(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-16">
@@ -409,10 +454,11 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
                 })()}
                 
                 <button 
-                  onClick={() => window.print()}
-                  className="w-full mt-4 py-2 px-4 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                  onClick={() => setBookModalOpen(true)}
+                  className="w-full mt-4 py-2 px-4 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
                 >
-                  Book Itinerary
+                  <Send className="h-4 w-4" />
+                  Book with Agent
                 </button>
                 
                 <button 
@@ -426,6 +472,77 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
           </section>
         </div>
       </main>
+
+      {bookModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg max-w-md w-full">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-semibold">Book with Travel Agent</h2>
+              <button 
+                onClick={() => {
+                  setBookModalOpen(false);
+                  setBookingError('');
+                }}
+                className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleBookItinerary} className="p-6 space-y-4">
+              {bookingError && (
+                <div className="bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 p-4 rounded-lg text-sm">
+                  {bookingError}
+                </div>
+              )}
+              
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white mb-2">
+                  {itinerary?.name}
+                </p>
+                {itinerary?.description && (
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    {itinerary.description}
+                  </p>
+                )}
+              </div>
+              
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg text-sm">
+                <p className="text-blue-800 dark:text-blue-200">
+                  By clicking "Book Now", your itinerary will be sent to our travel agent who will review it and contact you with any questions or to confirm your booking.
+                </p>
+              </div>
+              
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setBookModalOpen(false)}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isBooking}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isBooking ? (
+                    <>
+                      <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Send size={16} />
+                      Book Now
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
