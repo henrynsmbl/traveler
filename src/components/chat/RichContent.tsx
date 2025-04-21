@@ -91,7 +91,10 @@ const RichContent: React.FC<RichContentProps> = React.memo(({
               processedContent={processedContent}
               enableReferences={!!onMessageRefClick}
             />
-            {content.citations && <Citations citations={content.citations} />}
+            {content.citations && <Citations 
+              citations={content.citations} 
+              numbered={true}
+            />}
           </div>
         );
       

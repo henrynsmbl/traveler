@@ -60,9 +60,10 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({
 
 interface CitationsProps {
   citations: Citation[];
+  numbered?: boolean;
 }
 
-export const Citations: React.FC<CitationsProps> = ({ citations }) => {
+export const Citations: React.FC<CitationsProps> = ({ citations, numbered = false }) => {
   const [showSources, setShowSources] = useState(false);
   
   if (!citations || citations.length === 0) return null;
@@ -82,24 +83,25 @@ export const Citations: React.FC<CitationsProps> = ({ citations }) => {
       
       {showSources && (
         <div className="mt-2 pl-4 border-l border-blue-200 dark:border-blue-800 space-y-2.5">
-          {citations.map((citation, idx) => (
-            <div key={idx} className="flex flex-col">
-              <a 
-                href={citation.url} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="group flex items-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
-              >
-                <span className="line-clamp-1">{citation.title || citation.url}</span>
-                <ExternalLink className="ml-1.5 h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </a>
-              {citation.snippet && (
-                <p className="text-xs text-blue-500/70 dark:text-blue-400/70 mt-1 line-clamp-2">
-                  {citation.snippet}
-                </p>
-              )}
-            </div>
-          ))}
+          <div className="mt-2 text-sm text-gray-500">
+            <ul className="list-none pl-0">
+              {citations.map((citation, index) => (
+                <li key={index} className="mt-1 flex items-start">
+                  {numbered && (
+                    <span className="inline-block mr-2 font-medium">[{index + 1}]</span>
+                  )}
+                  <a 
+                    href={citation.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-blue-500 hover:underline break-all"
+                  >
+                    {citation.title || citation.url}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
     </div>
