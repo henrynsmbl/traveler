@@ -631,6 +631,26 @@ export default function Home() {
   // Add this new state for the current mode
   const [currentMode, setCurrentMode] = useState('search');
 
+  // Handle mode changes
+  const handleModeChange = (mode: string) => {
+    if (mode === 'agent') {
+      // Navigate to agent page
+      router.push('/agent');
+    } else if (mode === 'itinerary') {
+      // Navigate to explore itineraries page
+      router.push('/explore-itineraries');
+    } else {
+      // Set mode to search (default)
+      setCurrentMode(mode);
+      
+      // Clear messages if switching back to search mode from another mode
+      if (currentMode !== 'search' && mode === 'search') {
+        // Create a new empty session
+        createNewSession();
+      }
+    }
+  };
+
   return (
     <div className="h-full bg-gray-50 dark:bg-gray-900 relative">
       <div className="flex h-[calc(100vh-64px)] pt-16">
@@ -733,7 +753,7 @@ export default function Home() {
                 <>
                   <ModeSelector 
                     currentMode={currentMode}
-                    onModeChange={setCurrentMode}
+                    onModeChange={handleModeChange}
                   />
                   <MapButton 
                     onClick={() => setIsMapOpen(true)} 
