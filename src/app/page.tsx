@@ -2,7 +2,7 @@
 
 import React, { useMemo, useCallback } from 'react'
 import { useState, useRef, useEffect } from 'react'
-import { Send, ShoppingCart, Map } from 'lucide-react'
+import { Send, ShoppingCart, Map, Search, UserRound, FileText } from 'lucide-react'
 import { AuthButton } from '../components/auth/AuthButton'
 import { useAuth } from '../components/auth/AuthContext'
 import { useChatSessions } from '../components/chat/ChatContext'
@@ -39,39 +39,65 @@ const WelcomeScreen = () => {
   );
 };
 
+// Add this tooltip component
+const Tooltip: React.FC<{
+  text: string;
+  children: React.ReactNode;
+}> = ({ text, children }) => {
+  return (
+    <div className="group relative">
+      {children}
+      <div className="absolute bottom-full mb-2 right-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+        <div className="bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
+          {text}
+        </div>
+        <div className="w-2 h-2 bg-gray-800 transform rotate-45 absolute -bottom-1 right-3"></div>
+      </div>
+    </div>
+  );
+};
+
 const CartButton: React.FC<{ 
   count: number; 
   onClick: () => void;
 }> = ({ count, onClick }) => (
-  <button
-    onClick={onClick}
-    className="fixed bottom-24 right-6 z-50 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 ease-in-out"
-    aria-label="Toggle Selections"
-  >
-    <div className="relative">
-      <ShoppingCart size={24} />
-      {count > 0 && (
-        <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-          {count}
+  <div className="fixed bottom-24 right-6 z-50">
+    <Tooltip text="View Selections">
+      <button
+        onClick={onClick}
+        className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 ease-in-out"
+        aria-label="Toggle Selections"
+      >
+        <div className="relative">
+          <ShoppingCart size={24} />
+          {count > 0 && (
+            <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+              {count}
+            </div>
+          )}
         </div>
-      )}
-    </div>
-  </button>
+      </button>
+    </Tooltip>
+  </div>
 );
 
 const MapButton = React.memo(({ onClick, hasContent }: { onClick: () => void; hasContent?: boolean }) => (
-  <button
-    onClick={onClick}
-    className="fixed bottom-40 right-6 z-50 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 ease-in-out"
-    aria-label="Toggle Map"
-  >
-    <div className="relative">
-      <Map size={24} />
-      {hasContent && (
-        <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
-      )}
-    </div>
-  </button>
+  <div className="fixed bottom-40 right-6 z-50">
+    <Tooltip text="View Map">
+      <button
+        onClick={onClick}
+        className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 ease-in-out"
+        aria-label="Toggle Map"
+      >
+        <div className="relative">
+          <Map size={24} />
+          {hasContent && (
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
+          )}
+        </div>
+      </button>
+    </Tooltip>
+  </div>
 ));
 
 const MemoizedMapComponent = React.memo(MapComponent);
@@ -141,6 +167,104 @@ async function searchAPI(prompt: string, history: Message[]): Promise<SearchAPIR
 // Add this helper function at the top level
 const isEmptyChat = (session: ChatSession | null) => {
   return session?.title === 'New Chat' && (!session.messages || session.messages.length === 0);
+};
+
+// Update the ModeSelector component to include a tooltip
+const ModeSelector: React.FC<{
+  currentMode: string;
+  onModeChange: (mode: string) => void;
+}> = ({ currentMode, onModeChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  const modes = [
+    { id: 'search', label: 'Search', description: "Find flights, hotels, and activities" },
+    { id: 'agent', label: 'Travel Agent', description: "Get personalized travel recommendations" },
+    { id: 'itinerary', label: 'Explore Itineraries', description: "Browse curated travel plans" }
+  ];
+  
+  // Get current mode label for the tooltip
+  const currentModeLabel = modes.find(m => m.id === currentMode)?.label || 'Mode';
+  
+  return (
+    <>
+      <div className="fixed bottom-56 right-6 z-50">
+        <Tooltip text={`Change Mode (${currentModeLabel})`}>
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 ease-in-out"
+            aria-label="Toggle Mode"
+          >
+            <div className="relative">
+              {currentMode === 'search' && <Search size={24} />}
+              {currentMode === 'agent' && <UserRound size={24} />}
+              {currentMode === 'itinerary' && <FileText size={24} />}
+            </div>
+          </button>
+        </Tooltip>
+      </div>
+      
+      {isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setIsOpen(false)}>
+          <div 
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-2xl w-full mx-4 transform transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-medium text-gray-900 dark:text-gray-100 text-center mb-6">Select Mode</h3>
+            
+            <div className="flex flex-col md:flex-row gap-4 relative">
+              {modes.map((mode, index) => (
+                <button
+                  key={mode.id}
+                  onClick={() => {
+                    onModeChange(mode.id);
+                    setIsOpen(false);
+                  }}
+                  className={`flex-1 p-4 rounded-lg flex flex-col items-center text-center transition-all duration-200 ${
+                    currentMode === mode.id 
+                      ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' 
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  <div className={`p-3 rounded-full mb-2 ${
+                    currentMode === mode.id
+                      ? 'bg-blue-200 dark:bg-blue-800 text-blue-700 dark:text-blue-300'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  }`}>
+                    {mode.id === 'search' && <Search size={24} />}
+                    {mode.id === 'agent' && <UserRound size={24} />}
+                    {mode.id === 'itinerary' && <FileText size={24} />}
+                  </div>
+                  <div className="font-medium text-lg">{mode.label}</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    {mode.description}
+                  </div>
+                </button>
+              ))}
+              
+              {/* Slider bar */}
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-200 dark:bg-gray-700 mx-4 md:mx-8"></div>
+              <div 
+                className="absolute bottom-0 h-0.5 bg-blue-600 dark:bg-blue-400 transition-all duration-300"
+                style={{
+                  left: `calc(${modes.findIndex(m => m.id === currentMode) * (100 / modes.length)}% + ${8 / modes.length}%)`,
+                  width: `calc(${100 / modes.length}% - ${16 / modes.length}%)`,
+                }}
+              ></div>
+            </div>
+            
+            <div className="flex justify-center mt-6">
+              <button 
+                onClick={() => setIsOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
 };
 
 export default function Home() {
@@ -504,6 +628,9 @@ export default function Home() {
     [memoizedHotelData]
   );
 
+  // Add this new state for the current mode
+  const [currentMode, setCurrentMode] = useState('search');
+
   return (
     <div className="h-full bg-gray-50 dark:bg-gray-900 relative">
       <div className="flex h-[calc(100vh-64px)] pt-16">
@@ -604,6 +731,10 @@ export default function Home() {
             <>
               {!isSelectionsSidebarOpen && !isFlightSearchOpen && !isHotelSearchOpen && (
                 <>
+                  <ModeSelector 
+                    currentMode={currentMode}
+                    onModeChange={setCurrentMode}
+                  />
                   <MapButton 
                     onClick={() => setIsMapOpen(true)} 
                     hasContent={hasMapContent}
