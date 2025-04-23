@@ -198,40 +198,36 @@ const AccountPage: React.FC = () => {
               My Travel
             </h2>
             
-            <div className="max-w-3xl mx-auto">
+            <div className="max-w-2xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Travel Cards */}
               <Link 
                 href="/my-itineraries"
-                className="flex items-center justify-between w-full p-5 bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 border border-gray-100 dark:border-gray-700 mb-4"
+                className="flex flex-col p-5 bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 border border-gray-100 dark:border-gray-700"
               >
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full">
-                    <BookOpen className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+                    <BookOpen className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                   </div>
-                  <div>
-                    <h3 className="font-medium text-lg">My Saved Itineraries</h3>
-                    <p className="text-gray-500 dark:text-gray-400">View and manage your saved travel plans</p>
-                  </div>
+                  <h3 className="font-medium">My Saved Itineraries</h3>
                 </div>
-                <div className="text-blue-600 dark:text-blue-400 font-medium">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">View and manage your saved travel plans</p>
+                <div className="text-blue-600 dark:text-blue-400 text-sm font-medium mt-auto self-end">
                   View →
                 </div>
               </Link>
               
               <Link 
                 href="/my-bookings"
-                className="flex items-center justify-between w-full p-5 bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 border border-gray-100 dark:border-gray-700"
+                className="flex flex-col p-5 bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 border border-gray-100 dark:border-gray-700"
               >
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-full">
-                    <Clock className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-2.5 bg-purple-100 dark:bg-purple-900/30 rounded-full">
+                    <Clock className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                   </div>
-                  <div>
-                    <h3 className="font-medium text-lg">My Bookings</h3>
-                    <p className="text-gray-500 dark:text-gray-400">Track and manage your confirmed travel bookings</p>
-                  </div>
+                  <h3 className="font-medium">My Bookings</h3>
                 </div>
-                <div className="text-purple-600 dark:text-purple-400 font-medium">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">Track and manage your confirmed travel bookings</p>
+                <div className="text-purple-600 dark:text-purple-400 text-sm font-medium mt-auto self-end">
                   View →
                 </div>
               </Link>
