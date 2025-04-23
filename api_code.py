@@ -364,16 +364,15 @@ def analyze_intent(OPENAI_API_KEY, PERPLEXITY_API_KEY, SERPAI_API_KEY, user_inpu
       The user has prompted you with the attached input seeking help and advice.
       
       If the user requests a full trip plan or asks for help planning a trip:
-      1. Include the budget in the "budget" field if the user mentions it
-      2. Include the flight and hotel in the "flight" and "hotel" fields if the user mentions it
-      3. Add any specific requirements or preferences to the "notes" field
-      4. Include a general question about the destination in the "questions" field that can be used as a search query
-      5. If any required information is missing (like starting location):
+      1. Include the flight and hotel in the "flight" and "hotel" fields if the user mentions it
+      2. Add any specific requirements or preferences to the "notes" field
+      3. Include a general question about the destination in the "questions" field that can be used as a search query, unrelated to the flight or hotel
+      4. If any required information is missing (like starting location):
          - Set "notes" to a clear question asking for the missing information
          - Example: "What is your starting location for the flights?"
          - Make the question specific and actionable
+      5. If the user mentions a budget, include it in the "budget" field
          
-
       For example, if user says "Help plan trip to Paris for next week with $3000":
       
         "flight": "Flights to CDG from [start] for dates [dates]",
@@ -382,7 +381,6 @@ def analyze_intent(OPENAI_API_KEY, PERPLEXITY_API_KEY, SERPAI_API_KEY, user_inpu
         "questions": "Best things to do in Paris?",
         "notes": "What city would you like to fly from?"
       
-
       If the user provides all required information, in that above example, then return:
       
         "flight": "Find flights to Paris from New York for dates [dates]",
@@ -390,16 +388,25 @@ def analyze_intent(OPENAI_API_KEY, PERPLEXITY_API_KEY, SERPAI_API_KEY, user_inpu
         "budget": "$3000",
         "questions": "What are the best things to do in Paris?",
         "notes": ""
-      
+
+      For another example, if the user says "Help me plan an entire itinerary to Paris for 3 months":
+      Since the user didn't mention any budget, flights, hotels, just return the following:
+
+        "questions": "Help me plan an entire itinerary to Paris for 3 months"
+
+      Consider the questions section to be a general search query that can be used to find information online.
+
       If the user just asked a question help me generate the following json and parse the input into the following categories:
       "questions": put any question the user asked here
 
       If the user asked for specific flight or hotel searches:
       "hotel": include all information related to finding a hotel
-      "flight": include all information related to flights
+      "flight": include all information related to flights, if the user doesn't specify assume one-way and append that in
       "questions": any questions they asked
       "budget": include the user's overall budget if mentioned
       "notes": put any notes that the user should know
+
+      If the user asked specifically for a flight or hotel individually like "show me flights from DEN to LHR", fill in only the individual field. 
 
       For dates:
         - Current date for comparison is: {datetime.now().strftime('%Y-%m-%d')}
@@ -603,6 +610,11 @@ def lambda_handler(event, context):
         context = body.get('context', 'Be accurate and straightforward.')
         prompt = body.get('prompt', '')
         
+        # Extract flight and hotel parameters if they exist
+        flight_params = body.get('flightParams', None)
+        hotel_params = body.get('hotelParams', None)
+        is_direct_flight_search = body.get('isDirectFlightSearch', False)
+        
         if not prompt:
             raise ValueError("No prompt provided")
 
@@ -621,14 +633,86 @@ def lambda_handler(event, context):
                 # format the history nicely for debugging
                 print(f"Extracted conversation history:\n{conversation_history}")
         
-        # now get the response from analyze_intent
-        response = analyze_intent(
-            OPENAI_API_KEY, 
-            PERPLEXITY_API_KEY, 
-            SERPAI_API_KEY, 
-            prompt, 
-            conversation_history
-        )
+        # Handle direct flight search if parameters are provided
+        if is_direct_flight_search and flight_params:
+            print(f"Processing direct flight search with params: {flight_params}")
+            try:
+                flight_info = get_search_results({
+                    "api_key": SERPAI_API_KEY,
+                    "engine": "google_flights",
+                    **flight_params
+                })
+                
+                # Create a response with flight data
+                response = {
+                    "response": f"Here are the flight results for your search from {flight_params.get('departure_id', '')} to {flight_params.get('arrival_id', '')}.",
+                    "flights": flight_info,
+                    "citations": []
+                }
+                
+                if isinstance(flight_info, dict) and 'search_metadata' in flight_info and 'google_flights_url' in flight_info['search_metadata']:
+                    response["citations"].append(flight_info['search_metadata']['google_flights_url'])
+                
+                # Return the formatted response
+                return {
+                    'statusCode': 200,
+                    'headers': {
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                    },
+                    'body': json.dumps({
+                        'citations': response.get('citations', []),
+                        'response': response.get('response', ''),
+                        'flights': response.get('flights', {}),
+                        'hotels': {}
+                    })
+                }
+            except Exception as e:
+                print(f"Error in direct flight search: {str(e)}")
+                # Return error response
+                return {
+                    'statusCode': 500,
+                    'headers': {
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                    },
+                    'body': json.dumps({
+                        'response': f"I'm sorry, I encountered an error while searching for flights: {str(e)}",
+                        'citations': []
+                    })
+                }
+        
+        # Handle direct hotel search if parameters are provided
+        elif hotel_params:
+            print(f"Processing direct hotel search with params: {hotel_params}")
+            hotel_info = get_search_results({
+                "api_key": SERPAI_API_KEY,
+                "engine": "google_hotels",
+                **hotel_params
+            })
+            
+            # Create a response with hotel data
+            response = {
+                "response": f"Here are the hotel results for your search in {hotel_params.get('q', '')}.",
+                "hotels": hotel_info,
+                "citations": []
+            }
+            
+            if 'search_metadata' in hotel_info and 'google_hotels_url' in hotel_info['search_metadata']:
+                response["citations"].append(hotel_info['search_metadata']['google_hotels_url'])
+                
+            return response
+        
+        # Otherwise, use the standard analyze_intent flow
+        else:
+            # now get the response from analyze_intent
+            response = analyze_intent(
+                OPENAI_API_KEY, 
+                PERPLEXITY_API_KEY, 
+                SERPAI_API_KEY, 
+                prompt, 
+                conversation_history
+            )
         
         if all(not response.get(field) for field in ['response', 'flights', 'hotels']):
             raise ValueError("No response received from analyze intent.")

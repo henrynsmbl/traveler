@@ -42,10 +42,10 @@ const SelectionPopover: React.FC<SelectionPopoverProps> = ({ onAddSelection }) =
           onAddSelection(selection.text);
           setSelection(null);
         }}
-        className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-full shadow-lg flex items-center gap-2 text-sm"
+        className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-full shadow-lg flex items-center gap-2 text-sm transition-all duration-200 hover:scale-105"
       >
         <Plus className="h-4 w-4" />
-        <span>Add to aitinerary</span>
+        <span>Add to itinerary</span>
       </button>
     </div>
   );

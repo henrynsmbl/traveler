@@ -1,265 +1,182 @@
 import React, { useState } from 'react';
-import type { Selection, ActivitySelection } from '../../types/selections';
-import type { FlightData, Flight, Layover } from '../../types/flight';
-import type { HotelData } from '../../types/hotel';
+import { useRouter } from 'next/navigation';
+import type { Selection } from '@/types/selections';
 import type { DateRange } from "react-day-picker";
-import { jsPDF } from 'jspdf';
-
-interface HotelDates {
-  [hotelId: string]: DateRange | undefined;
-}
+import { useAuth } from '../auth/AuthContext';
+import { saveSelections } from '@/lib/firebase/selections';
+import { createBooking, calculateItineraryTotal } from '@/lib/firebase/bookings';
+import { X, Save, Send } from 'lucide-react';
 
 interface InvoiceGeneratorProps {
   selections: Selection[];
-  hotelDates: HotelDates;
+  hotelDates: { [key: string]: DateRange | undefined };
 }
 
-const formatDate = (dateTimeStr: string) => {
-  try {
-    if (!dateTimeStr) return '';
-    const date = new Date(dateTimeStr);
-    if (isNaN(date.getTime())) return dateTimeStr;
-    
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  } catch (error) {
-    console.error('Error formatting date:', dateTimeStr, error);
-    return dateTimeStr;
-  }
-};
-
 const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ selections, hotelDates }) => {
-  const [showAlert, setShowAlert] = useState(false);
+  const router = useRouter();
+  const { user } = useAuth();
+  const [bookModalOpen, setBookModalOpen] = useState(false);
+  const [isBooking, setIsBooking] = useState(false);
+  const [bookingError, setBookingError] = useState('');
+  const [itineraryName, setItineraryName] = useState('My Trip');
 
-  const checkHotelDates = () => {
-    const hotelSelections = selections.filter(s => s.type === 'hotel');
-    return hotelSelections.every(selection => hotelDates[selection.id]?.from && hotelDates[selection.id]?.to);
-  };
-
-  const handleGenerateClick = () => {
-    if (!checkHotelDates()) {
-      setShowAlert(true);
-      setTimeout(() => setShowAlert(false), 5000);
+  const handleViewItinerary = async () => {
+    if (!user) {
+      alert('Please sign in to view your itinerary');
       return;
     }
-    generatePDF();
+
+    try {
+      // Save the current selections to Firebase
+      await saveSelections(user.uid, selections, hotelDates);
+      
+      // Navigate to the itinerary page
+      router.push('/itinerary');
+    } catch (error) {
+      console.error('Error saving selections:', error);
+      alert('There was an error saving your itinerary. Please try again.');
+    }
   };
 
-  const generatePDF = () => {
-    const doc = new jsPDF();
-    let yPos = 20;
-    const pageHeight = doc.internal.pageSize.height;
-    const margin = 20;
-
-    const addText = (text: string, fontSize: number = 12, isBold: boolean = false) => {
-      const cleanText = text
-        .replace(/→/g, 'to')
-        .replace(/₂/g, '2')
-        .replace(/'/g, "'")
-        .replace(/'/g, "'");
-
-      if (yPos > pageHeight - margin) {
-        doc.addPage();
-        yPos = margin;
-      }
-
-      doc.setFontSize(fontSize);
-      doc.setFont('helvetica', isBold ? 'bold' : 'normal');
-      doc.text(cleanText, margin, yPos);
-      yPos += fontSize * 0.4;
-    };
-
-    const addNewLine = (space: number = 5) => {
-      yPos += space;
-      if (yPos > pageHeight - margin) {
-        doc.addPage();
-        yPos = margin;
-      }
-    };
-
-    // Title
-    doc.setFontSize(20);
-    doc.setFont('helvetica', 'bold');
-    doc.text('TRAVEL AITINERARY', doc.internal.pageSize.width / 2, yPos, { align: 'center' });
-    yPos += 20;
-
-    // Flights Section
-    const flightSelections = selections.filter(s => s.type === 'flight');
-    if (flightSelections.length > 0) {
-      addText('FLIGHTS', 16, true);
-      addText('----------------', 16);
-      addNewLine();
-
-      flightSelections.forEach(selection => {
-        const flightData = selection.data as FlightData;
-        
-        addText(`${flightData.flights[0].departure_airport.name} to ${flightData.flights[flightData.flights.length - 1].arrival_airport.name}`, 14, true);
-        addNewLine();
-
-        flightData.flights.forEach((flight: Flight, index: number) => {
-          addText(`Flight: ${flight.airline} ${flight.flight_number}`);
-          addText(`Departure: ${formatDate(flight.departure_airport.time)}`);
-          addText(`Time: ${flight.departure_airport.time.split(' ')[1]}`);
-          addText(`From: ${flight.departure_airport.name} (${flight.departure_airport.id})`);
-          addNewLine(3);
-          addText(`Arrival: ${formatDate(flight.arrival_airport.time)}`);
-          addText(`Time: ${flight.arrival_airport.time.split(' ')[1]}`);
-          addText(`To: ${flight.arrival_airport.name} (${flight.arrival_airport.id})`);
-          addText(`Duration: ${Math.floor(flight.duration / 60)}h ${flight.duration % 60}m`);
-          addText(`Class: ${flight.travel_class}`);
-          if (flight.overnight) {
-            addText('Note: Overnight flight');
-          }
-
-          if (flightData.layovers?.[index]) {
-            const layover = flightData.layovers[index] as Layover;
-            addText(`Layover at ${layover.name}: ${Math.floor(layover.duration / 60)}h ${layover.duration % 60}m`);
-            if (layover.overnight) {
-              addText('Note: Overnight layover');
-            }
-          }
-          addNewLine();
-        });
-
-        addText(`Total Flight Price: $${flightData.price.toFixed(2)}`, 12, true);
-        if (flightData.carbon_emissions) {
-          addText(`Carbon Emissions: ${(flightData.carbon_emissions.this_flight / 1000).toFixed(1)}kg CO2`);
-        }
-        addNewLine(10);
-      });
+  const handleBookItinerary = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!user) {
+      setBookingError('Please sign in to book your itinerary');
+      return;
     }
-
-    // Hotels Section
-    const hotelSelections = selections.filter(s => s.type === 'hotel');
-    if (hotelSelections.length > 0) {
-      addText('HOTELS', 16, true);
-      addText('----------------', 16);
-      addNewLine();
-
-      hotelSelections.forEach(selection => {
-        const hotelData = selection.data as HotelData;
-        const dates = hotelDates[selection.id];
-
-        addText(hotelData.name, 12, true);
-
-        if (dates?.from && dates?.to && hotelData.rate_per_night?.lowest) {
-          const nights = Math.ceil((dates.to.getTime() - dates.from.getTime()) / (1000 * 60 * 60 * 24));
-          const nightlyRate = parseFloat(hotelData.rate_per_night.lowest.replace(/[^0-9.]/g, ''));
-          const totalHotelCost = nightlyRate * nights;
-
-          addText(`Check-in: ${dates.from.toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-          })}`);
-          addText(`Check-out: ${dates.to.toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-          })}`);
-          addText(`Nightly Rate: $${nightlyRate.toFixed(2)}`);
-          addText(`Total for ${nights} nights: $${totalHotelCost.toFixed(2)}`, 12, true);
-        }
-        addNewLine(10);
-      });
+    
+    if (selections.length === 0) {
+      setBookingError('Your itinerary is empty. Please add some items before booking.');
+      return;
     }
-
-    // After hotels section, add activities section
-    const activitySelections = selections.filter(s => s.type === 'activity');
-    if (activitySelections.length > 0) {
-      addText('ACTIVITIES', 16, true);
-      addText('----------------', 16);
-      addNewLine(5);
-
-      activitySelections.forEach(selection => {
-        const activityData = selection.data as ActivitySelection['data'];
-        addText('Activity:', 12, true);
-        
-        // Split long descriptions into multiple lines
-        const words = activityData.description.split(' ');
-        let line = '';
-        words.forEach(word => {
-          if ((line + word).length > 60) {
-            addText(line, 12);
-            line = word + ' ';
-          } else {
-            line += word + ' ';
-          }
-        });
-        if (line) addText(line.trim(), 12);
-        
-        addNewLine(3);
-
-        if (activityData.notes) {
-          addText('Notes:', 12, true);
-          // Split notes into lines and add them
-          const noteLines = activityData.notes.split('\n');
-          noteLines.forEach(noteLine => {
-            const words = noteLine.split(' ');
-            let line = '';
-            words.forEach(word => {
-              if ((line + word).length > 60) {
-                addText(line, 12);
-                line = word + ' ';
-              } else {
-                line += word + ' ';
-              }
-            });
-            if (line) addText(line.trim(), 12);
-          });
-          addNewLine(3);
-        }
-        
-        addText(`Price: TBD`, 12, true);
-        addNewLine(10);
-      });
+    
+    try {
+      setIsBooking(true);
+      setBookingError('');
+      
+      // Calculate total price
+      const totalPrice = calculateItineraryTotal(selections, hotelDates);
+      
+      // Create booking in Firebase
+      const bookingId = await createBooking(
+        user.uid,
+        user.email || 'unknown@example.com',
+        user.displayName || 'Anonymous User',
+        null, // No saved itinerary ID
+        itineraryName,
+        selections,
+        hotelDates,
+        totalPrice
+      );
+      
+      // Navigate to the booking status page
+      router.push(`/booking/${bookingId}`);
+      
+    } catch (error) {
+      console.error('Error creating booking:', error);
+      setBookingError('Failed to create booking. Please try again.');
+      setIsBooking(false);
     }
-
-    // Total
-    const totalCost = [...flightSelections, ...hotelSelections].reduce((acc, selection) => {
-      if (selection.type === 'flight') {
-        return acc + (selection.data as FlightData).price;
-      } else {
-        const hotelData = selection.data as HotelData;
-        const dates = hotelDates[selection.id];
-        if (dates?.from && dates?.to && hotelData.rate_per_night?.lowest) {
-          const nights = Math.ceil((dates.to.getTime() - dates.from.getTime()) / (1000 * 60 * 60 * 24));
-          const nightlyRate = parseFloat(hotelData.rate_per_night.lowest.replace(/[^0-9.]/g, ''));
-          return acc + (nightlyRate * nights);
-        }
-        return acc;
-      }
-    }, 0);
-
-    addNewLine();
-    addText('----------------', 16);
-    addText(`TOTAL COST: $${totalCost.toFixed(2)}`, 16, true);
-
-    const pdfBlob = doc.output('blob');
-    const pdfUrl = URL.createObjectURL(pdfBlob);
-    window.open(pdfUrl, '_blank');
   };
 
   return (
-    <div className="space-y-2">
-      {showAlert && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative text-sm">
-          Please select dates for all hotels before generating the itinerary.
+    <>
+      <div className="flex flex-col space-y-2 w-full">
+        <button
+          onClick={handleViewItinerary}
+          disabled={selections.length === 0}
+          className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          View Itinerary
+        </button>
+        
+        <button
+          onClick={() => setBookModalOpen(true)}
+          disabled={selections.length === 0}
+          className="w-full py-2 px-4 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          <Send className="h-4 w-4" />
+          Book with Agent
+        </button>
+      </div>
+
+      {/* Booking Modal */}
+      {bookModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg max-w-md w-full">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-semibold">Book with Travel Agent</h2>
+              <button 
+                onClick={() => {
+                  setBookModalOpen(false);
+                  setBookingError('');
+                }}
+                className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleBookItinerary} className="p-6 space-y-4">
+              {bookingError && (
+                <div className="bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 p-4 rounded-lg text-sm">
+                  {bookingError}
+                </div>
+              )}
+              
+              <div>
+                <label htmlFor="itineraryName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Trip Name
+                </label>
+                <input
+                  type="text"
+                  id="itineraryName"
+                  value={itineraryName}
+                  onChange={(e) => setItineraryName(e.target.value)}
+                  placeholder="e.g., Summer Vacation 2023"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  required
+                />
+              </div>
+              
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg text-sm">
+                <p className="text-blue-800 dark:text-blue-200">
+                  By clicking "Book Now", your itinerary will be sent to our travel agent who will review it and contact you with any questions or to confirm your booking.
+                </p>
+              </div>
+              
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setBookModalOpen(false)}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isBooking}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isBooking ? (
+                    <>
+                      <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Send size={16} />
+                      Book Now
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
-      <button
-        onClick={handleGenerateClick}
-        className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg mt-2"
-      >
-        View Itinerary
-      </button>
-    </div>
+    </>
   );
 };
 

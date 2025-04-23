@@ -11,7 +11,6 @@ import type { Selection, ActivitySelection } from '../../types/selections';
 import 'react-day-picker/dist/style.css';
 import type { DateRange } from "react-day-picker";
 import InvoiceGenerator from './InvoiceGenerator';
-import LockedButton from './LockedButton';
 
 interface HotelDates {
   [hotelId: string]: DateRange | undefined;
@@ -389,8 +388,10 @@ const SelectionsSidebar: React.FC<SelectionsSidebarProps> = ({
               <span>Total Price:</span>
               <span>${calculateTotal(selections, hotelDates).toFixed(2)}</span>
             </div>
-            <LockedButton></LockedButton>
-            <InvoiceGenerator selections={selections} hotelDates={hotelDates} />
+            <InvoiceGenerator 
+              selections={selections} 
+              hotelDates={hotelDates} 
+            />
           </div>
         </div>
       )}

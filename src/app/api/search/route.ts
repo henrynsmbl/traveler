@@ -63,7 +63,15 @@ If a budget is specified, consider it for the entire trip including activities.`
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { prompt, history = [] } = body
+    const { prompt, history = [], flightParams, hotelParams, isDirectFlightSearch } = body
+
+    console.log("API Route - Request payload:", { 
+      prompt, 
+      historyLength: history.length,
+      flightParams,
+      hotelParams,
+      isDirectFlightSearch
+    });
 
     // Format the history with enhanced context
     const chatHistory = formatChatHistory(history)
@@ -73,7 +81,10 @@ export async function POST(request: Request) {
       context: chatHistory ? 
         `Previous conversation:\n${chatHistory}\n\nBe accurate and straightforward. When referencing previous information, explicitly mention the message number (e.g., "As mentioned in Message #2...").` : 
         "Be accurate and straightforward.",
-      prompt: prompt
+      prompt: prompt,
+      flightParams: flightParams,
+      hotelParams: hotelParams,
+      isDirectFlightSearch: isDirectFlightSearch
     }
 
     // Get API key from environment variable
@@ -88,6 +99,7 @@ export async function POST(request: Request) {
       );
     }
 
+    console.log("API Route - Sending request to Lambda");
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
@@ -95,24 +107,34 @@ export async function POST(request: Request) {
         'x-api-key': apiKey 
       },
       body: JSON.stringify({ body: JSON.stringify(payload) })
-    })
+    });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      console.error(`API Route - HTTP error: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`API Route - Error response: ${errorText}`);
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
 
-    const data = await response.json()
+    const data = await response.json();
+    console.log("API Route - Lambda response:", data);
     
     try {
-      const responseBody = typeof data.body === 'string' ? JSON.parse(data.body) : data.body
+      const responseBody = typeof data.body === 'string' ? JSON.parse(data.body) : data.body;
+      console.log("API Route - Parsed response body:", responseBody);
       
       // Prepare citations
       const citations = Array.isArray(responseBody.citations)
         ? responseBody.citations.map((citation: string) => ({ url: citation }))
-        : []
+        : [];
+
+      // Check if we have flight data
+      if (responseBody.flights) {
+        console.log("API Route - Flight data found in response");
+      }
 
       // Prepare the modelMessage matching the expected frontend structure
-      return NextResponse.json({
+      const result = {
         contents: [{
           content: responseBody.response || "",
           citations: citations,
@@ -123,16 +145,35 @@ export async function POST(request: Request) {
         }],
         isUser: false,
         timestamp: new Date()
-      })
+      };
+      
+      console.log("API Route - Final response structure:", {
+        contentLength: result.contents[0].content.length,
+        hasFlights: !!result.contents[0].flights,
+        hasHotels: !!result.contents[0].hotels
+      });
+      
+      return NextResponse.json(result);
     } catch (e) {
-      console.error('API Route - Error parsing body:', e)
-      throw new Error('Failed to parse API response')
+      console.error('API Route - Error parsing body:', e);
+      throw new Error('Failed to parse API response');
     }
   } catch (error) {
-    console.error('API Route - Error:', error)
+    console.error('API Route - Error:', error);
+    
+    // Return a more detailed error response
     return NextResponse.json(
-      { error: 'Failed to process request' },
+      { 
+        error: 'Failed to process request',
+        message: error instanceof Error ? error.message : String(error),
+        contents: [{
+          content: "I'm sorry, but I encountered an error while processing your search request. Please try again with different parameters.",
+          type: 'text'
+        }],
+        isUser: false,
+        timestamp: new Date()
+      },
       { status: 500 }
-    )
+    );
   }
 }

@@ -2,7 +2,7 @@
 
 import React, { useMemo, useCallback } from 'react'
 import { useState, useRef, useEffect } from 'react'
-import { Send, ShoppingCart, Map } from 'lucide-react'
+import { Send, ShoppingCart, Map, Search, UserRound, FileText } from 'lucide-react'
 import { AuthButton } from '../components/auth/AuthButton'
 import { useAuth } from '../components/auth/AuthContext'
 import { useChatSessions } from '../components/chat/ChatContext'
@@ -19,6 +19,8 @@ import SelectionPopover from '@/components/chat/SelectionPopover'
 import { checkSubscription } from '@/lib/firebase/subscriptionFirestore'
 import { useRouter } from 'next/navigation'
 import MapComponent from '../components/map/MapComponent'
+import { FlightSearchContainer } from '../components/flight/FlightSearch'
+import { HotelSearchContainer } from '../components/hotel/HotelSearch'
 
 const WelcomeScreen = () => {
   const { user } = useAuth();
@@ -37,45 +39,73 @@ const WelcomeScreen = () => {
   );
 };
 
+// Add this tooltip component
+const Tooltip: React.FC<{
+  text: string;
+  children: React.ReactNode;
+}> = ({ text, children }) => {
+  return (
+    <div className="group relative">
+      {children}
+      <div className="absolute bottom-full mb-2 right-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+        <div className="bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
+          {text}
+        </div>
+        <div className="w-2 h-2 bg-gray-800 transform rotate-45 absolute -bottom-1 right-3"></div>
+      </div>
+    </div>
+  );
+};
+
 const CartButton: React.FC<{ 
   count: number; 
   onClick: () => void;
 }> = ({ count, onClick }) => (
-  <button
-    onClick={onClick}
-    className="fixed bottom-24 right-6 z-50 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 ease-in-out"
-    aria-label="Toggle Selections"
-  >
-    <div className="relative">
-      <ShoppingCart size={24} />
-      {count > 0 && (
-        <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-          {count}
+  <div className="fixed bottom-24 right-6 z-50">
+    <Tooltip text="View Selections">
+      <button
+        onClick={onClick}
+        className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 ease-in-out"
+        aria-label="Toggle Selections"
+      >
+        <div className="relative">
+          <ShoppingCart size={24} />
+          {count > 0 && (
+            <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+              {count}
+            </div>
+          )}
         </div>
-      )}
-    </div>
-  </button>
+      </button>
+    </Tooltip>
+  </div>
 );
 
 const MapButton = React.memo(({ onClick, hasContent }: { onClick: () => void; hasContent?: boolean }) => (
-  <button
-    onClick={onClick}
-    className="fixed bottom-40 right-6 z-50 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 ease-in-out"
-    aria-label="Toggle Map"
-  >
-    <div className="relative">
-      <Map size={24} />
-      {hasContent && (
-        <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
-      )}
-    </div>
-  </button>
+  <div className="fixed bottom-40 right-6 z-50">
+    <Tooltip text="View Map">
+      <button
+        onClick={onClick}
+        className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 ease-in-out"
+        aria-label="Toggle Map"
+      >
+        <div className="relative">
+          <Map size={24} />
+          {hasContent && (
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
+          )}
+        </div>
+      </button>
+    </Tooltip>
+  </div>
 ));
 
 const MemoizedMapComponent = React.memo(MapComponent);
 
 async function searchAPI(prompt: string, history: Message[]): Promise<SearchAPIResponse> {
   try {
+    console.log("searchAPI - Sending request with prompt:", prompt);
+    
     const response = await fetch('/api/search', {
       method: 'POST',
       headers: {
@@ -97,13 +127,15 @@ async function searchAPI(prompt: string, history: Message[]): Promise<SearchAPIR
     });
 
     if (!response.ok) {
+      console.error(`searchAPI - HTTP error: ${response.status}`);
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const data = await response.json();
+    console.log("searchAPI - API response:", data);
     
     // Check if the response is empty and provide a fallback
-    if (!data.contents?.[0]?.content || data.contents[0].content.trim() === "") {
+    if (!data.contents?.[0]?.content && !data.contents?.[0]?.flights) {
       console.warn('Empty response from API, using fallback');
       return {
         citations: [],
@@ -113,10 +145,15 @@ async function searchAPI(prompt: string, history: Message[]): Promise<SearchAPIR
       };
     }
     
+    // Log the extracted flight data if present
+    if (data.contents?.[0]?.flights) {
+      console.log("searchAPI - Flight data found:", data.contents[0].flights);
+    }
+    
     // Extract the relevant fields from the response
     return {
       citations: data.contents?.[0]?.citations || [],
-      response: data.contents?.[0]?.content || "",
+      response: data.contents?.[0]?.content || "Here are your search results.",
       flights: data.contents?.[0]?.flights || undefined,
       hotels: data.contents?.[0]?.hotels || undefined
     };
@@ -130,6 +167,104 @@ async function searchAPI(prompt: string, history: Message[]): Promise<SearchAPIR
 // Add this helper function at the top level
 const isEmptyChat = (session: ChatSession | null) => {
   return session?.title === 'New Chat' && (!session.messages || session.messages.length === 0);
+};
+
+// Update the ModeSelector component to include a tooltip
+const ModeSelector: React.FC<{
+  currentMode: string;
+  onModeChange: (mode: string) => void;
+}> = ({ currentMode, onModeChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  const modes = [
+    { id: 'search', label: 'Search', description: "Find flights, hotels, and activities" },
+    { id: 'agent', label: 'Travel Agent', description: "Get personalized travel recommendations" },
+    { id: 'itinerary', label: 'Explore Itineraries', description: "Browse curated travel plans" }
+  ];
+  
+  // Get current mode label for the tooltip
+  const currentModeLabel = modes.find(m => m.id === currentMode)?.label || 'Mode';
+  
+  return (
+    <>
+      <div className="fixed bottom-56 right-6 z-50">
+        <Tooltip text={`Change Mode (${currentModeLabel})`}>
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 ease-in-out"
+            aria-label="Toggle Mode"
+          >
+            <div className="relative">
+              {currentMode === 'search' && <Search size={24} />}
+              {currentMode === 'agent' && <UserRound size={24} />}
+              {currentMode === 'itinerary' && <FileText size={24} />}
+            </div>
+          </button>
+        </Tooltip>
+      </div>
+      
+      {isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setIsOpen(false)}>
+          <div 
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-2xl w-full mx-4 transform transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-medium text-gray-900 dark:text-gray-100 text-center mb-6">Select Mode</h3>
+            
+            <div className="flex flex-col md:flex-row gap-4 relative">
+              {modes.map((mode, index) => (
+                <button
+                  key={mode.id}
+                  onClick={() => {
+                    onModeChange(mode.id);
+                    setIsOpen(false);
+                  }}
+                  className={`flex-1 p-4 rounded-lg flex flex-col items-center text-center transition-all duration-200 ${
+                    currentMode === mode.id 
+                      ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' 
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  <div className={`p-3 rounded-full mb-2 ${
+                    currentMode === mode.id
+                      ? 'bg-blue-200 dark:bg-blue-800 text-blue-700 dark:text-blue-300'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  }`}>
+                    {mode.id === 'search' && <Search size={24} />}
+                    {mode.id === 'agent' && <UserRound size={24} />}
+                    {mode.id === 'itinerary' && <FileText size={24} />}
+                  </div>
+                  <div className="font-medium text-lg">{mode.label}</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    {mode.description}
+                  </div>
+                </button>
+              ))}
+              
+              {/* Slider bar */}
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-200 dark:bg-gray-700 mx-4 md:mx-8"></div>
+              <div 
+                className="absolute bottom-0 h-0.5 bg-blue-600 dark:bg-blue-400 transition-all duration-300"
+                style={{
+                  left: `calc(${modes.findIndex(m => m.id === currentMode) * (100 / modes.length)}% + ${8 / modes.length}%)`,
+                  width: `calc(${100 / modes.length}% - ${16 / modes.length}%)`,
+                }}
+              ></div>
+            </div>
+            
+            <div className="flex justify-center mt-6">
+              <button 
+                onClick={() => setIsOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
 };
 
 export default function Home() {
@@ -182,17 +317,32 @@ export default function Home() {
     }
   }, [user]);
 
-  // Add this state to track the latest user message
-  const [latestUserMessageRef, setLatestUserMessageRef] = useState<HTMLDivElement | null>(null);
-
-  // Replace the current useEffect for scrolling
+  // Enhance the scrolling behavior with a more robust approach
   useEffect(() => {
-    // When a new user message is added, scroll to that message instead of the bottom
-    if (latestUserMessageRef && messages.length > 0 && messages[messages.length - 1].isUser) {
-      latestUserMessageRef.scrollIntoView({ behavior: 'smooth' });
+    // Scroll to the bottom whenever messages change or when the page loads
+    if (messages.length > 0) {
+      // Use a longer timeout to ensure all content (including rich content) has rendered
+      const scrollTimer = setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+      }, 300); // Longer timeout to ensure everything is rendered
+      
+      return () => clearTimeout(scrollTimer);
     }
-    // When an AI response comes in, don't auto-scroll
-  }, [messages, latestUserMessageRef]);
+  }, [messages]);
+
+  // Also scroll when loading state changes (after API response completes)
+  useEffect(() => {
+    if (!isLoading && messages.length > 0) {
+      // Scroll after loading completes
+      setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+      }, 300);
+    }
+  }, [isLoading, messages.length]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -450,6 +600,8 @@ export default function Home() {
 
   const router = useRouter();
   const [isMapOpen, setIsMapOpen] = useState(false);
+  const [isFlightSearchOpen, setIsFlightSearchOpen] = useState(false);
+  const [isHotelSearchOpen, setIsHotelSearchOpen] = useState(false);
 
   // Update the hotel data memoization to include all hotel messages
   const memoizedHotelData = useMemo(() => {
@@ -476,11 +628,91 @@ export default function Home() {
     [memoizedHotelData]
   );
 
+  // Add this new state for the current mode
+  const [currentMode, setCurrentMode] = useState('search');
+
+  // Handle mode changes
+  const handleModeChange = (mode: string) => {
+    if (mode === 'agent') {
+      // Navigate to agent page
+      router.push('/agent');
+    } else if (mode === 'itinerary') {
+      // Navigate to explore itineraries page
+      router.push('/explore-itineraries');
+    } else {
+      // Set mode to search (default)
+      setCurrentMode(mode);
+      
+      // Clear messages if switching back to search mode from another mode
+      if (currentMode !== 'search' && mode === 'search') {
+        // Create a new empty session
+        createNewSession();
+      }
+    }
+  };
+
   return (
     <div className="h-full bg-gray-50 dark:bg-gray-900 relative">
       <div className="flex h-[calc(100vh-64px)] pt-16">
         <div className={`flex-1 transition-margin duration-200 ease-in-out
             ${isSidebarOpen ? 'md:ml-64' : 'ml-0'} relative`}>
+          
+          {user && currentSession && (
+            <>
+              <div className="max-w-5xl mx-auto px-4 pt-2">
+                <div className="flex justify-center space-x-4">
+                  <button
+                    onClick={() => setIsFlightSearchOpen(!isFlightSearchOpen)}
+                    className={`
+                      px-5 py-2.5 text-sm font-medium
+                      transition-colors duration-200
+                      ${isFlightSearchOpen 
+                        ? 'text-blue-700 dark:text-blue-300' 
+                        : 'text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'}
+                    `}
+                  >
+                    {isFlightSearchOpen ? 'Close Flight Search' : 'Search Flights'}
+                  </button>
+                  
+                  <button
+                    onClick={() => setIsHotelSearchOpen(!isHotelSearchOpen)}
+                    className={`
+                      px-5 py-2.5 text-sm font-medium
+                      transition-colors duration-200
+                      ${isHotelSearchOpen 
+                        ? 'text-blue-700 dark:text-blue-300' 
+                        : 'text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'}
+                    `}
+                  >
+                    {isHotelSearchOpen ? 'Close Hotel Search' : 'Search Hotels'}
+                  </button>
+                </div>
+              </div>
+              
+              {isFlightSearchOpen && (
+                <div className="fixed inset-0 z-40 bg-white dark:bg-gray-900 overflow-auto pt-16">
+                  <div className="max-w-5xl mx-auto p-4">
+                    <FlightSearchContainer 
+                      isOpen={isFlightSearchOpen}
+                      setIsOpen={setIsFlightSearchOpen}
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {isHotelSearchOpen && (
+                <div className="fixed inset-0 z-40 bg-white dark:bg-gray-900 overflow-auto pt-16">
+                  <div className="max-w-5xl mx-auto p-4">
+                    <HotelSearchContainer 
+                      isOpen={isHotelSearchOpen}
+                      setIsOpen={setIsHotelSearchOpen}
+                    />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+          
           <main className={`h-full pb-24 ${currentSession && messages.length > 0 ? 'overflow-y-auto scrollbar-gutter-stable' : ''}`}>
             {!user ? (
               <WelcomeScreen />
@@ -493,12 +725,6 @@ export default function Home() {
                     <div
                       key={generateMessageKey(message, index)}
                       className={`${message.isUser ? 'flex justify-end' : 'w-full'} mb-4`}
-                      ref={node => {
-                        // If this is the latest user message, store a reference to it
-                        if (message.isUser && index === messages.length - 1) {
-                          setLatestUserMessageRef(node);
-                        }
-                      }}
                     >
                       <div
                         className={`${
@@ -523,8 +749,12 @@ export default function Home() {
 
           {user && (
             <>
-              {!isSelectionsSidebarOpen && (
+              {!isSelectionsSidebarOpen && !isFlightSearchOpen && !isHotelSearchOpen && (
                 <>
+                  <ModeSelector 
+                    currentMode={currentMode}
+                    onModeChange={handleModeChange}
+                  />
                   <MapButton 
                     onClick={() => setIsMapOpen(true)} 
                     hasContent={hasMapContent}
@@ -563,7 +793,13 @@ export default function Home() {
                       </button>
                       
                       <form onSubmit={handleSubmit}>
-                        <div className="flex items-end bg-white dark:bg-gray-800 rounded-full border border-gray-300 dark:border-gray-600 pr-3 pl-4 py-2">
+                        <div 
+                          className={`flex items-end bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 pr-3 pl-4 py-2 transition-all duration-200 ${
+                            currentInput.split('\n').length > 1 || currentInput.length > 50 
+                              ? 'rounded-xl' // Less rounded when expanded
+                              : 'rounded-full' // Fully rounded when empty/short
+                          }`}
+                        >
                           <textarea
                             ref={inputRef}
                             value={currentInput}
