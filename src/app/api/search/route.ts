@@ -63,12 +63,13 @@ If a budget is specified, consider it for the entire trip including activities.`
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { prompt, history = [], flightParams, isDirectFlightSearch } = body
+    const { prompt, history = [], flightParams, hotelParams, isDirectFlightSearch } = body
 
     console.log("API Route - Request payload:", { 
       prompt, 
       historyLength: history.length,
       flightParams,
+      hotelParams,
       isDirectFlightSearch
     });
 
@@ -82,6 +83,7 @@ export async function POST(request: Request) {
         "Be accurate and straightforward.",
       prompt: prompt,
       flightParams: flightParams,
+      hotelParams: hotelParams,
       isDirectFlightSearch: isDirectFlightSearch
     }
 
@@ -105,11 +107,13 @@ export async function POST(request: Request) {
         'x-api-key': apiKey 
       },
       body: JSON.stringify({ body: JSON.stringify(payload) })
-    })
+    });
 
     if (!response.ok) {
       console.error(`API Route - HTTP error: ${response.status}`);
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`API Route - Error response: ${errorText}`);
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
 
     const data = await response.json();
@@ -156,8 +160,19 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     console.error('API Route - Error:', error);
+    
+    // Return a more detailed error response
     return NextResponse.json(
-      { error: 'Failed to process request' },
+      { 
+        error: 'Failed to process request',
+        message: error instanceof Error ? error.message : String(error),
+        contents: [{
+          content: "I'm sorry, but I encountered an error while processing your search request. Please try again with different parameters.",
+          type: 'text'
+        }],
+        isUser: false,
+        timestamp: new Date()
+      },
       { status: 500 }
     );
   }

@@ -248,7 +248,7 @@ export const HotelSearchDropdown: React.FC<HotelSearchDropdownProps> = ({ isOpen
     console.log("Hotel search parameters:", hotelParams);
     
     // Create a user-friendly search query for the API
-    const userQueryText = `Hotel search for ${searchQuery}`;
+    const userQueryText = `Hotel search for ${searchQuery} from ${checkInDate} to ${checkOutDate}`;
     
     // Define userMessage outside the try block so it's accessible in the catch block
     const userMessage = {
@@ -290,7 +290,8 @@ export const HotelSearchDropdown: React.FC<HotelSearchDropdownProps> = ({ isOpen
         body: JSON.stringify({
           prompt: userQueryText,
           history: currentSession?.messages || [],
-          hotelParams: hotelParams
+          hotelParams: hotelParams,
+          isDirectFlightSearch: false
         }),
       });
       

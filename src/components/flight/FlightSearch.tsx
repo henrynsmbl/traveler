@@ -247,21 +247,27 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
     flightParams.currency = currency;
     flightParams.adults = parseInt(passengers.toString()); // Ensure it's a number
     
-    // Map travel class to the correct integer value (already correct in the UI)
-    flightParams.travel_class = parseInt(travelClass.toString()); // Ensure it's a number
+    // Map travel class to the correct integer value
+    if (travelClass) {
+      flightParams.travel_class = parseInt(travelClass.toString()); // Ensure it's a number
+    }
     
     // Add other parameters with correct mapping
-    if (showHidden) flightParams.show_hidden = Boolean(showHidden);
-    if (deepSearch) flightParams.deep_search = Boolean(deepSearch);
+    if (showHidden) flightParams.show_hidden = true;
+    if (deepSearch) flightParams.deep_search = true;
     if (children > 0) flightParams.children = parseInt(children.toString());
     if (infantsInSeat > 0) flightParams.infants_in_seat = parseInt(infantsInSeat.toString());
     if (infantsOnLap > 0) flightParams.infants_on_lap = parseInt(infantsOnLap.toString());
     
     // Map sort_by to the correct integer value
-    flightParams.sort_by = parseInt(sortBy.toString()); // Ensure it's a number
+    if (sortBy) {
+      flightParams.sort_by = parseInt(sortBy.toString()); // Ensure it's a number
+    }
     
     // Map stops to the correct integer value
-    flightParams.stops = parseInt(stops.toString()); // Ensure it's a number
+    if (stops) {
+      flightParams.stops = parseInt(stops.toString()); // Ensure it's a number
+    }
     
     // Handle airlines inclusion/exclusion
     if (airlines) {
@@ -273,7 +279,9 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
     }
     
     // Map bags to the correct integer value
-    if (bags > 0) flightParams.bags = parseInt(bags.toString());
+    if (bags > 0) {
+      flightParams.bags = parseInt(bags.toString());
+    }
     
     // Handle max_price as integer
     if (maxPrice) {
@@ -288,7 +296,7 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
     if (returnTimes && tripType === 'roundtrip') flightParams.return_times = returnTimes;
     
     // Handle emissions
-    if (emissions === 1) flightParams.emissions = parseInt(emissions.toString());
+    if (emissions === 1) flightParams.emissions = 1;
         
     // Handle exclude_conns
     if (excludeConns) flightParams.exclude_conns = excludeConns;
@@ -306,9 +314,6 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
     
     // Log the final parameters for debugging
     console.log("Flight search parameters:", flightParams);
-    console.log("Travel class:", flightParams.travel_class, "type:", typeof flightParams.travel_class);
-    console.log("Bags:", flightParams.bags, "type:", typeof flightParams.bags);
-    console.log("Stops:", flightParams.stops, "type:", typeof flightParams.stops);
     
     // Create a user-friendly search query for the API
     let searchQuery = `Manual search from ${origin} to ${destination}`;
@@ -373,13 +378,21 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
         return;
       }
       
-      // Update the chat session with the user's message and loading message
+      // Update the chat session with the user's message
       await updateCurrentSession({
         messages: [...(currentSession?.messages || []), userMessage]
       });
       
+      // Clean up the flight parameters to ensure they're all valid
+      // Remove any undefined or empty values
+      const cleanedParams = Object.fromEntries(
+        Object.entries(flightParams).filter(([_, value]) => 
+          value !== undefined && value !== null && value !== ''
+        )
+      );
+      
       // Now send the search query to your API
-      console.log("Sending flight search to API with params:", flightParams);
+      console.log("Sending flight search to API with params:", cleanedParams);
       const response = await fetch('/api/search', {
         method: 'POST',
         headers: {
@@ -388,7 +401,7 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
         body: JSON.stringify({
           prompt: searchQuery,
           history: currentSession?.messages || [],
-          flightParams: flightParams,
+          flightParams: cleanedParams,
           isDirectFlightSearch: true
         }),
       });
