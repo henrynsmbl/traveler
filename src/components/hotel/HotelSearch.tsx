@@ -5,7 +5,7 @@ import { Plane, Filter, ChevronDown, ChevronUp } from 'lucide-react'
 import { useAuth } from '../../components/auth/AuthContext';
 import { useChatSessions } from '../../components/chat/ChatContext';
 import { ContentType } from '../../types/messages';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 
 // Sample airport data - in a real app, you'd fetch this from an API
 const AIRPORTS = [
@@ -656,18 +656,18 @@ export const HotelSearchDropdown: React.FC<HotelSearchDropdownProps> = ({ isOpen
               </label>
               <div className="flex flex-wrap gap-2 mt-1">
                 {[
-                  { id: "12", label: "Beach hotels" },
-                  { id: "13", label: "Boutique hotels" },
-                  { id: "14", label: "Hostels" },
-                  { id: "15", label: "Inns" },
-                  { id: "16", label: "Motels" },
-                  { id: "17", label: "Resorts" },
-                  { id: "18", label: "Spa hotels" },
-                  { id: "19", label: "Bed & Breakfasts" },
-                  { id: "21", label: "Apartments" },
-                  { id: "22", label: "Minshuku" },
-                  { id: "23", label: "Business hotels" },
-                  { id: "24", label: "Ryokan" }
+                  { id: "1", label: "Apartments" },
+                  { id: "2", label: "Bungalows" },
+                  { id: "3", label: "Cabins" },
+                  { id: "4", label: "Chalets" },
+                  { id: "5", label: "Cottages" },
+                  { id: "6", label: "Gîtes" },
+                  { id: "7", label: "Holiday villages" },
+                  { id: "8", label: "Houses" },
+                  { id: "9", label: "Houseboats" },
+                  { id: "10", label: "Villas" },
+                  { id: "11", label: "Other" },
+                  { id: "21", label: "Apartment hotels" }
                 ].map(type => {
                   const isSelected = propertyTypes.split(',').includes(type.id);
                   return (

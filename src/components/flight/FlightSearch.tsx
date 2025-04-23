@@ -5,7 +5,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useAuth } from '../../components/auth/AuthContext';
 import { useChatSessions } from '../../components/chat/ChatContext';
 import { ContentType } from '../../types/messages';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 
 // Sample airport data - in a real app, you'd fetch this from an API
 const AIRPORTS = [
@@ -205,9 +205,9 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
   const [outboundTimes, setOutboundTimes] = useState('');
   const [returnTimes, setReturnTimes] = useState('');
   const [emissions, setEmissions] = useState(0);
-  const [layoverDuration, setLayoverDuration] = useState('');
   const [excludeConns, setExcludeConns] = useState('');
-  const [maxDuration, setMaxDuration] = useState('');
+  const [maxDurationHours, setMaxDurationHours] = useState('');
+  const [maxDurationMinutes, setMaxDurationMinutes] = useState('');
   
   if (!isOpen) return null;
 
@@ -277,18 +277,18 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
     
     // Handle emissions
     if (emissions === 1) flightParams.emissions = parseInt(emissions.toString());
-    
-    // Handle layover_duration (format: min,max)
-    if (layoverDuration) flightParams.layover_duration = layoverDuration;
-    
+        
     // Handle exclude_conns
     if (excludeConns) flightParams.exclude_conns = excludeConns;
     
-    // Handle max_duration as integer
-    if (maxDuration) {
-      const maxDurationInt = parseInt(maxDuration);
-      if (!isNaN(maxDurationInt)) {
-        flightParams.max_duration = maxDurationInt;
+    // Handle max_duration as integer (convert hours and minutes to total minutes)
+    if (maxDurationHours || maxDurationMinutes) {
+      const hours = parseInt(maxDurationHours) || 0;
+      const minutes = parseInt(maxDurationMinutes) || 0;
+      const totalMinutes = (hours * 60) + minutes;
+      
+      if (totalMinutes > 0) {
+        flightParams.max_duration = totalMinutes;
       }
     }
     
@@ -316,6 +316,24 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
     // Add bags information
     if (flightParams.bags) {
       searchQuery += ` with ${flightParams.bags} carry-on bag${flightParams.bags > 1 ? 's' : ''}`;
+    }
+    
+    // Add duration information if specified
+    if (flightParams.max_duration) {
+      const hours = Math.floor(flightParams.max_duration / 60);
+      const minutes = flightParams.max_duration % 60;
+      let durationText = '';
+      
+      if (hours > 0) {
+        durationText += `${hours} hour${hours > 1 ? 's' : ''}`;
+      }
+      
+      if (minutes > 0) {
+        if (hours > 0) durationText += ' and ';
+        durationText += `${minutes} minute${minutes > 1 ? 's' : ''}`;
+      }
+      
+      searchQuery += ` with maximum duration of ${durationText}`;
     }
     
     // Define userMessage outside the try block so it's accessible in the catch block
@@ -745,29 +763,34 @@ export const FlightSearchDropdown: React.FC<FlightSearchDropdownProps> = ({ isOp
             {/* Max Duration */}
             <div className="md:col-span-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Max Duration (minutes)
+                Max Flight Duration
               </label>
-              <input
-                type="number"
-                value={maxDuration}
-                onChange={(e) => setMaxDuration(e.target.value)}
-                placeholder="e.g. 600"
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              />
-            </div>
-
-            {/* Layover Duration */}
-            <div className="md:col-span-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Layover Duration (min,max)
-              </label>
-              <input
-                type="text"
-                value={layoverDuration}
-                onChange={(e) => setLayoverDuration(e.target.value)}
-                placeholder="e.g. 90,330"
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              />
+              <div className="flex space-x-2">
+                <div className="flex-1">
+                  <input
+                    type="number"
+                    min="0"
+                    max="24"
+                    value={maxDurationHours}
+                    onChange={(e) => setMaxDurationHours(e.target.value)}
+                    placeholder="Hours"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  />
+                  <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 block">Hours</span>
+                </div>
+                <div className="flex-1">
+                  <input
+                    type="number"
+                    min="0"
+                    max="59"
+                    value={maxDurationMinutes}
+                    onChange={(e) => setMaxDurationMinutes(e.target.value)}
+                    placeholder="Minutes"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  />
+                  <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 block">Minutes</span>
+                </div>
+              </div>
             </div>
           </div>
         )}

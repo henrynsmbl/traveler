@@ -274,11 +274,11 @@ export default function AgentPage() {
                       onChange={(e) => {
                         const textarea = e.target;
                         const lines = textarea.value.split('\n');
-                        if (lines.length > 3 && e.target.value.length > currentInput.length) {
+                        if (lines.length > 12 && e.target.value.length > currentInput.length) {
                           return;
                         }
                         textarea.style.height = 'inherit';
-                        const newHeight = Math.min(textarea.scrollHeight, 24 * 3);
+                        const newHeight = Math.min(textarea.scrollHeight, 24 * 12);
                         textarea.style.height = `${newHeight}px`;
                         setCurrentInput(textarea.value);
                       }}
@@ -288,7 +288,7 @@ export default function AgentPage() {
                       className="flex-1 resize-none bg-transparent border-0 focus:ring-0 outline-none
                               dark:text-white min-h-[24px] py-0 overflow-y-auto scrollbar-none"
                       style={{
-                        maxHeight: '72px'
+                        maxHeight: '288px'
                       }}
                       placeholder="Describe your travel plans or ask a question..."
                     />
