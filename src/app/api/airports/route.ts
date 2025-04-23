@@ -53,11 +53,38 @@ export async function GET(request: Request) {
     let filteredAirports: Airport[] = airports;
     
     if (query) {
-      filteredAirports = airports.filter(airport => 
-        airport.code.toLowerCase().includes(query) || 
-        airport.city.toLowerCase().includes(query) || 
-        airport.name.toLowerCase().includes(query)
-      ).slice(0, 10); // Limit to 10 results
+      // First, find exact code matches
+      const exactCodeMatches = airports.filter(airport => 
+        airport.code.toLowerCase() === query
+      );
+      
+      // Then find codes that start with the query
+      const codeStartsWithMatches = airports.filter(airport => 
+        airport.code.toLowerCase().startsWith(query) && 
+        airport.code.toLowerCase() !== query
+      );
+      
+      // Then find city matches
+      const cityMatches = airports.filter(airport => 
+        airport.city.toLowerCase().includes(query) && 
+        !airport.code.toLowerCase().startsWith(query)
+      );
+      
+      // Then find any other matches (name, country)
+      const otherMatches = airports.filter(airport => 
+        !airport.code.toLowerCase().startsWith(query) && 
+        !airport.city.toLowerCase().includes(query) &&
+        (airport.name.toLowerCase().includes(query) || 
+         airport.country.toLowerCase().includes(query))
+      );
+      
+      // Combine all matches in priority order
+      filteredAirports = [
+        ...exactCodeMatches,
+        ...codeStartsWithMatches,
+        ...cityMatches,
+        ...otherMatches
+      ].slice(0, 10); // Limit to 10 results
     } else {
       // Return just a few major airports if no query
       filteredAirports = airports.slice(0, 20);

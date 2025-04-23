@@ -202,7 +202,7 @@ const AccountPage: React.FC = () => {
               {/* Travel Cards */}
               <Link 
                 href="/my-itineraries"
-                className="flex items-center justify-between w-full p-5 bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 border border-gray-100 dark:border-gray-700"
+                className="flex items-center justify-between w-full p-5 bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 border border-gray-100 dark:border-gray-700 mb-4"
               >
                 <div className="flex items-center gap-4">
                   <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full">
@@ -217,65 +217,24 @@ const AccountPage: React.FC = () => {
                   View →
                 </div>
               </Link>
-            </div>
-            
-            {/* Bookings Section - Now with horizontal scroll */}
-            <div className="mt-8 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-6 shadow-md max-w-3xl mx-auto">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                <Clock className="w-5 h-5 text-blue-500 mr-2" />
-                My Bookings
-              </h3>
               
-              {loadingBookings ? (
-                <div className="text-center py-8">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-                </div>
-              ) : bookings.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-gray-500 dark:text-gray-400">
-                    You don't have any bookings yet.
-                  </p>
-                  <Link
-                    href="/"
-                    className="mt-4 inline-block px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-500 text-white rounded-lg hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
-                  >
-                    Start Planning Your Trip
-                  </Link>
-                </div>
-              ) : (
-                <div className="overflow-x-auto pb-2">
-                  <div className="flex space-x-4" style={{ minWidth: 'min-content' }}>
-                    {bookings.map((booking) => (
-                      <Link
-                        key={booking.id}
-                        href={`/booking/${booking.id}`}
-                        className="block p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition-all duration-300 hover:-translate-y-1 hover:shadow-md w-72 flex-shrink-0"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h3 className="font-medium">{booking.itineraryName}</h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Created on {format(booking.createdAt, 'MMM d, yyyy')}
-                            </p>
-                          </div>
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(booking.status)}`}>
-                            {getStatusIcon(booking.status)}
-                            <span className="ml-1">{booking.status.replace('_', ' ').toUpperCase()}</span>
-                          </span>
-                        </div>
-                        <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                          ${booking.totalPrice.toFixed(2)} • {booking.selections.length} items
-                        </div>
-                        {booking.status === 'questions_pending' && (
-                          <div className="mt-2 text-purple-600 dark:text-purple-400 text-sm font-medium">
-                            Agent has questions - please respond
-                          </div>
-                        )}
-                      </Link>
-                    ))}
+              <Link 
+                href="/my-bookings"
+                className="flex items-center justify-between w-full p-5 bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 border border-gray-100 dark:border-gray-700"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-full">
+                    <Clock className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-lg">My Bookings</h3>
+                    <p className="text-gray-500 dark:text-gray-400">Track and manage your confirmed travel bookings</p>
                   </div>
                 </div>
-              )}
+                <div className="text-purple-600 dark:text-purple-400 font-medium">
+                  View →
+                </div>
+              </Link>
             </div>
           </div>
 

@@ -17,7 +17,7 @@ const TutorialHighlight = ({ children }: { children: React.ReactNode }) => {
       <div className="absolute -top-6 sm:-top-7 left-1/2 transform -translate-x-1/2 z-10 opacity-90 group-hover:opacity-100 transition-opacity">
         <div className="bg-blue-500 text-white px-2 sm:px-3 py-1 rounded-full shadow-lg flex items-center gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap">
           <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
-          <span>Add to aitinerary</span>
+          <span>Add to itinerary</span>
         </div>
       </div>
       <span className="bg-blue-100 dark:bg-blue-900/30 px-1 rounded cursor-pointer">
@@ -29,7 +29,7 @@ const TutorialHighlight = ({ children }: { children: React.ReactNode }) => {
 
 const tutorialMessages: Array<{ title: string; messages: Message[] }> = [
   {
-    title: "Ask anything",
+    title: "Ask Anything",
     messages: [
       {
         contents: [{
@@ -50,7 +50,7 @@ const tutorialMessages: Array<{ title: string; messages: Message[] }> = [
     ]
   },
   {
-    title: "Highlight & save findings",
+    title: "Highlight & Save Findings",
     messages: [
       {
         contents: [{
@@ -71,7 +71,7 @@ const tutorialMessages: Array<{ title: string; messages: Message[] }> = [
       {
         contents: [{
           type: 'text',
-          content: "**Seoul, South Korea**: <TutorialHighlight>Named one of the world's best solo travel destinations, Seoul offers an easy-to-use transport system, friendly locals, and consistently ranks as the safest city in Asia.</TutorialHighlight>"
+          content: "**Seoul, South Korea**: Named one of the world's best solo travel destinations, <TutorialHighlight>Seoul offers an easy-to-use transport system</TutorialHighlight>, friendly locals, and consistently ranks as the safest city in Asia."
         }],
         isUser: false,
         timestamp: new Date()
@@ -79,7 +79,7 @@ const tutorialMessages: Array<{ title: string; messages: Message[] }> = [
     ]
   },
   {
-    title: "Search flights instantly",
+    title: "Search Flights Instantly",
     messages: [
       {
         contents: [{
@@ -103,7 +103,7 @@ const tutorialMessages: Array<{ title: string; messages: Message[] }> = [
     ]
   },
   {
-    title: "Find perfect hotels",
+    title: "Find Perfect Hotels",
     messages: [
       {
         contents: [{

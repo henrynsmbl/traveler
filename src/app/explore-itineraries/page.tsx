@@ -2,10 +2,9 @@
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, MapPin, Calendar, Clock, Plane, Hotel, Utensils, Camera, Compass, Sun, Umbrella, Mountain, Waves, Coffee, Music, Star } from 'lucide-react'
+import { ArrowLeft, MapPin, Calendar, Clock, Plane, Hotel, Utensils, Camera, Compass, Sun, Umbrella, Mountain, Waves, Coffee, Music, Star, Search, UserRound, FileText } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
-import ModeSelector from '@/components/layout/ModeSelector'
 import { useAuth } from '@/components/auth/AuthContext'
 
 // Define the itinerary type
@@ -406,6 +405,132 @@ const ItineraryDetails = ({
   );
 };
 
+// Add this tooltip component
+const Tooltip: React.FC<{
+  text: string;
+  children: React.ReactNode;
+}> = ({ text, children }) => {
+  return (
+    <div className="group relative">
+      {children}
+      <div className="absolute bottom-full mb-2 right-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+        <div className="bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
+          {text}
+        </div>
+        <div className="w-2 h-2 bg-gray-800 transform rotate-45 absolute -bottom-1 right-3"></div>
+      </div>
+    </div>
+  );
+};
+
+// Update the ModeSelector component to include a tooltip
+const ModeSelector: React.FC<{
+  currentMode: string;
+}> = ({ currentMode }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const router = useRouter();
+  
+  const modes = [
+    { id: 'search', label: 'Search', description: "Find flights, hotels, and activities" },
+    { id: 'agent', label: 'Travel Agent', description: "Get personalized travel recommendations" },
+    { id: 'itinerary', label: 'Explore Itineraries', description: "Browse curated travel plans" }
+  ];
+  
+  // Get current mode label for the tooltip
+  const currentModeLabel = modes.find(m => m.id === currentMode)?.label || 'Mode';
+  
+  const handleModeChange = (mode: string) => {
+    if (mode === 'search') {
+      router.push('/');
+    } else if (mode === 'itinerary') {
+      router.push('/explore-itineraries');
+    } else if (mode === 'agent') {
+      router.push('/agent');
+    }
+  };
+  
+  return (
+    <>
+      <div className="fixed bottom-12 right-6 z-50">
+        <Tooltip text={`Change Mode (${currentModeLabel})`}>
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 ease-in-out"
+            aria-label="Toggle Mode"
+          >
+            <div className="relative">
+              {currentMode === 'search' && <Search size={24} />}
+              {currentMode === 'agent' && <UserRound size={24} />}
+              {currentMode === 'itinerary' && <FileText size={24} />}
+            </div>
+          </button>
+        </Tooltip>
+      </div>
+      
+      {isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setIsOpen(false)}>
+          <div 
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-2xl w-full mx-4 transform transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-medium text-gray-900 dark:text-gray-100 text-center mb-6">Select Mode</h3>
+            
+            <div className="flex flex-col md:flex-row gap-4 relative">
+              {modes.map((mode, index) => (
+                <button
+                  key={mode.id}
+                  onClick={() => {
+                    handleModeChange(mode.id);
+                    setIsOpen(false);
+                  }}
+                  className={`flex-1 p-4 rounded-lg flex flex-col items-center text-center transition-all duration-200 ${
+                    currentMode === mode.id 
+                      ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' 
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  <div className={`p-3 rounded-full mb-2 ${
+                    currentMode === mode.id
+                      ? 'bg-blue-200 dark:bg-blue-800 text-blue-700 dark:text-blue-300'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  }`}>
+                    {mode.id === 'search' && <Search size={24} />}
+                    {mode.id === 'agent' && <UserRound size={24} />}
+                    {mode.id === 'itinerary' && <FileText size={24} />}
+                  </div>
+                  <div className="font-medium text-lg">{mode.label}</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    {mode.description}
+                  </div>
+                </button>
+              ))}
+              
+              {/* Slider bar */}
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-200 dark:bg-gray-700 mx-4 md:mx-8"></div>
+              <div 
+                className="absolute bottom-0 h-0.5 bg-blue-600 dark:bg-blue-400 transition-all duration-300"
+                style={{
+                  left: `calc(${modes.findIndex(m => m.id === currentMode) * (100 / modes.length)}% + ${8 / modes.length}%)`,
+                  width: `calc(${100 / modes.length}% - ${16 / modes.length}%)`,
+                }}
+              ></div>
+            </div>
+            
+            <div className="flex justify-center mt-6">
+              <button 
+                onClick={() => setIsOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
 export default function ExploreItinerariesPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -428,7 +553,7 @@ export default function ExploreItinerariesPage() {
             <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
               <div className="flex items-center gap-4">
                 <button 
-                  onClick={() => router.push('/')}
+                  onClick={() => router.back()}
                   className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 >
                   <ArrowLeft size={20} />

@@ -56,7 +56,40 @@ const AirportInput: React.FC<AirportInputProps> = ({
         const response = await fetch(`/api/airports?q=${encodeURIComponent(query)}`);
         if (response.ok) {
           const data = await response.json();
-          setSuggestions(data);
+          
+          // Prioritize exact code matches first
+          const exactCodeMatches = data.filter((airport: Airport) => 
+            airport.code.toLowerCase() === query
+          );
+          
+          // Then prioritize codes that start with the query
+          const codeStartsWithMatches = data.filter((airport: Airport) => 
+            airport.code.toLowerCase().startsWith(query) && 
+            airport.code.toLowerCase() !== query
+          );
+          
+          // Then prioritize city matches
+          const cityMatches = data.filter((airport: Airport) => 
+            airport.city.toLowerCase().includes(query) && 
+            !airport.code.toLowerCase().startsWith(query)
+          );
+          
+          // Then include any other matches
+          const otherMatches = data.filter((airport: Airport) => 
+            !airport.code.toLowerCase().startsWith(query) && 
+            !airport.city.toLowerCase().includes(query) &&
+            airport.name.toLowerCase().includes(query)
+          );
+          
+          // Combine the results in priority order
+          const prioritizedResults = [
+            ...exactCodeMatches,
+            ...codeStartsWithMatches,
+            ...cityMatches,
+            ...otherMatches
+          ].slice(0, 10); // Limit to 10 total results
+          
+          setSuggestions(prioritizedResults);
         }
       } catch (error) {
         console.error('Error fetching airport suggestions:', error);
