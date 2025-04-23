@@ -6,37 +6,7 @@ import { useAuth } from '../../components/auth/AuthContext';
 import { useChatSessions } from '../../components/chat/ChatContext';
 import { ContentType } from '../../types/messages';
 import { useRouter } from 'next/navigation';
-
-// Sample airport data - in a real app, you'd fetch this from an API
-const AIRPORTS = [
-  { code: 'JFK', name: 'John F. Kennedy International Airport', city: 'New York', country: 'USA' },
-  { code: 'LAX', name: 'Los Angeles International Airport', city: 'Los Angeles', country: 'USA' },
-  { code: 'SFO', name: 'San Francisco International Airport', city: 'San Francisco', country: 'USA' },
-  { code: 'ORD', name: 'O\'Hare International Airport', city: 'Chicago', country: 'USA' },
-  { code: 'MIA', name: 'Miami International Airport', city: 'Miami', country: 'USA' },
-  { code: 'DFW', name: 'Dallas/Fort Worth International Airport', city: 'Dallas', country: 'USA' },
-  { code: 'LHR', name: 'Heathrow Airport', city: 'London', country: 'UK' },
-  { code: 'CDG', name: 'Charles de Gaulle Airport', city: 'Paris', country: 'France' },
-  { code: 'FRA', name: 'Frankfurt Airport', city: 'Frankfurt', country: 'Germany' },
-  { code: 'AMS', name: 'Amsterdam Airport Schiphol', city: 'Amsterdam', country: 'Netherlands' },
-  { code: 'MAD', name: 'Adolfo Suárez Madrid–Barajas Airport', city: 'Madrid', country: 'Spain' },
-  { code: 'FCO', name: 'Leonardo da Vinci–Fiumicino Airport', city: 'Rome', country: 'Italy' },
-  { code: 'SYD', name: 'Sydney Airport', city: 'Sydney', country: 'Australia' },
-  { code: 'HND', name: 'Haneda Airport', city: 'Tokyo', country: 'Japan' },
-  { code: 'PEK', name: 'Beijing Capital International Airport', city: 'Beijing', country: 'China' },
-  { code: 'DXB', name: 'Dubai International Airport', city: 'Dubai', country: 'UAE' },
-  { code: 'DEL', name: 'Indira Gandhi International Airport', city: 'Delhi', country: 'India' },
-  { code: 'GRU', name: 'São Paulo–Guarulhos International Airport', city: 'São Paulo', country: 'Brazil' },
-  { code: 'MEX', name: 'Mexico City International Airport', city: 'Mexico City', country: 'Mexico' },
-  { code: 'YYZ', name: 'Toronto Pearson International Airport', city: 'Toronto', country: 'Canada' },
-];
-
-interface Airport {
-  code: string;
-  name: string;
-  city: string;
-  country: string;
-}
+import { MAJOR_AIRPORTS, Airport } from './airports';
 
 interface AirportInputProps {
   value: string;
@@ -58,8 +28,9 @@ const AirportInput: React.FC<AirportInputProps> = ({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Filter airports based on input
+  // Debounce search to avoid too many API calls
   useEffect(() => {
     if (inputValue.trim() === '') {
       setSuggestions([]);
@@ -67,33 +38,35 @@ const AirportInput: React.FC<AirportInputProps> = ({
     }
 
     const query = inputValue.toLowerCase();
-    const filtered = AIRPORTS.filter(airport => 
-      airport.code.toLowerCase().includes(query) || 
-      airport.city.toLowerCase().includes(query) || 
-      airport.name.toLowerCase().includes(query)
-    ).slice(0, 5); // Limit to 5 suggestions
     
-    setSuggestions(filtered);
-  }, [inputValue]);
-
-  // Close suggestions when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        inputRef.current && 
-        !inputRef.current.contains(event.target as Node) &&
-        suggestionsRef.current && 
-        !suggestionsRef.current.contains(event.target as Node)
-      ) {
-        setShowSuggestions(false);
+    // Use local major airports for very short queries
+    if (query.length < 2) {
+      const filtered = MAJOR_AIRPORTS.filter(airport => 
+        airport.code.toLowerCase().includes(query) || 
+        airport.city.toLowerCase().includes(query)
+      ).slice(0, 5);
+      setSuggestions(filtered);
+      return;
+    }
+    
+    // Debounce API calls
+    const timer = setTimeout(async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch(`/api/airports?q=${encodeURIComponent(query)}`);
+        if (response.ok) {
+          const data = await response.json();
+          setSuggestions(data);
+        }
+      } catch (error) {
+        console.error('Error fetching airport suggestions:', error);
+      } finally {
+        setIsLoading(false);
       }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [inputValue]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
@@ -102,7 +75,7 @@ const AirportInput: React.FC<AirportInputProps> = ({
   };
 
   const handleSelectSuggestion = (airport: Airport) => {
-    const displayValue = `${airport.city} (${airport.code})`;
+    const displayValue = `${airport.city} (${airport.code}), ${airport.country}`;
     setInputValue(displayValue);
     onChange(airport.code);
     setShowSuggestions(false);
@@ -135,10 +108,16 @@ const AirportInput: React.FC<AirportInputProps> = ({
               className="px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer text-sm"
               onClick={() => handleSelectSuggestion(airport)}
             >
-              <div className="font-medium">{airport.city} ({airport.code})</div>
+              <div className="font-medium">{airport.city} ({airport.code}) <span className="text-gray-500 dark:text-gray-400">{airport.country}</span></div>
               <div className="text-xs text-gray-500 dark:text-gray-400">{airport.name}</div>
             </div>
           ))}
+        </div>
+      )}
+      
+      {isLoading && (
+        <div className="absolute right-3 top-9">
+          <div className="animate-spin h-4 w-4 border-2 border-blue-500 rounded-full border-t-transparent"></div>
         </div>
       )}
     </div>
