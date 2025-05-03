@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation'
 import MapComponent from '../components/map/MapComponent'
 import { FlightSearchContainer } from '../components/flight/FlightSearch'
 import { HotelSearchContainer } from '../components/hotel/HotelSearch'
+import { updateHotelDates } from '@/lib/firebase/selections'
 
 const WelcomeScreen = () => {
   const { user } = useAuth();
@@ -285,11 +286,18 @@ export default function Home() {
   } = useChatSessions()
 
   const [hotelDates, setHotelDates] = useState<{[key: string]: DateRange | undefined}>({});
-  const handleUpdateHotelDates = (hotelId: string, dates: DateRange) => {
+  const handleUpdateHotelDates = async (hotelId: string, dates: DateRange) => {
     setHotelDates(prev => ({
       ...prev,
       [hotelId]: dates
     }));
+    
+    if (user?.uid) {
+      await updateHotelDates(user.uid, hotelId, {
+        from: dates.from,
+        to: dates.to
+      });
+    }
   };
 
   const messages = currentSession?.messages || []

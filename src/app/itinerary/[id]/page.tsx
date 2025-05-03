@@ -9,6 +9,8 @@ import type { Selection, FlightSelection, HotelSelection, ActivitySelection } fr
 import type { DateRange } from 'react-day-picker';
 import { getItinerary, SavedItinerary } from '@/lib/firebase/itineraries';
 import { createBooking, calculateItineraryTotal } from '@/lib/firebase/bookings';
+import CalendarContainer from '@/components/calendar/CalendarContainer';
+import { CustomNote } from '@/types/notes';
 
 // Import the same helper functions from your itinerary page
 const formatDuration = (minutes: number): string => {
@@ -51,16 +53,6 @@ const formatTime = (dateTimeStr: string) => {
   }
 };
 
-interface CustomNote {
-  id: string;
-  date: Date;
-  title: string;
-  content: string;
-  color?: string;
-}
-
-type CalendarView = 'year' | 'month' | 'week' | 'day';
-
 export default function SavedItineraryPage({ params }: { params: { id: string } | Promise<{ id: string }> }) {
   const { user } = useAuth();
   const router = useRouter();
@@ -70,8 +62,6 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
   const [bookModalOpen, setBookModalOpen] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
   const [bookingError, setBookingError] = useState('');
-  const [calendarView, setCalendarView] = useState<CalendarView>('month');
-  const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [currentNote, setCurrentNote] = useState<{ id: string; date: Date; title: string; content: string; color: string } | null>(null);
   const [noteModalOpen, setNoteModalOpen] = useState(false);
@@ -197,679 +187,101 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
   };
 
   const handleSaveNote = () => {
-    // Implementation of handleSaveNote function
-  };
-
-  const navigatePrevious = () => {
-    if (calendarView === 'day') {
-      setCurrentDate(prev => addDays(prev, -1));
-    } else if (calendarView === 'week') {
-      setCurrentDate(prev => addWeeks(prev, -1));
-    } else if (calendarView === 'month') {
-      setCurrentDate(prev => addMonths(prev, -1));
-    } else if (calendarView === 'year') {
-      setCurrentDate(prev => addYears(prev, -1));
-    }
-  };
-
-  const navigateNext = () => {
-    if (calendarView === 'day') {
-      setCurrentDate(prev => addDays(prev, 1));
-    } else if (calendarView === 'week') {
-      setCurrentDate(prev => addWeeks(prev, 1));
-    } else if (calendarView === 'month') {
-      setCurrentDate(prev => addMonths(prev, 1));
-    } else if (calendarView === 'year') {
-      setCurrentDate(prev => addYears(prev, 1));
-    }
-  };
-
-  const navigateToday = () => {
-    setCurrentDate(new Date());
-  };
-
-  const getEventsForDate = (date: Date) => {
-    const events = [];
+    if (!currentNote || !selectedDate) return;
     
-    // Add flights for this date
-    for (const flight of sortedFlights) {
-      for (const segment of flight.data.flights) {
-        const departureDate = new Date(segment.departure_airport.time);
-        if (isSameDay(departureDate, date)) {
-          events.push({
-            type: 'flight',
-            title: `Flight: ${segment.airline} ${segment.flight_number}`,
-            time: formatTime(segment.departure_airport.time),
-            details: `${segment.departure_airport.id} → ${segment.arrival_airport.id}`,
-            color: 'bg-blue-100 border-blue-500'
-          });
-        }
-        
-        const arrivalDate = new Date(segment.arrival_airport.time);
-        if (isSameDay(arrivalDate, date)) {
-          events.push({
-            type: 'flight',
-            title: `Flight Arrival: ${segment.airline} ${segment.flight_number}`,
-            time: formatTime(segment.arrival_airport.time),
-            details: `${segment.departure_airport.id} → ${segment.arrival_airport.id}`,
-            color: 'bg-green-100 border-green-500'
-          });
-        }
-      }
-    }
+    const newNote: CustomNote = {
+      id: currentNote.id || `note-${Date.now()}`,
+      date: selectedDate,
+      title: currentNote.title,
+      content: currentNote.content,
+      color: currentNote.color
+    };
     
-    // Add hotel check-ins and check-outs
-    for (const hotel of hotelSelections) {
-      const dates = hotelDates[hotel.id];
-      if (dates?.from && isSameDay(dates.from, date)) {
-        events.push({
-          type: 'hotel',
-          title: `Check-in: ${hotel.data.name}`,
-          time: '3:00 PM', // Default check-in time
-          details: hotel.data.address || '',
-          color: 'bg-purple-100 border-purple-500'
-        });
-      }
-      
-      if (dates?.to && isSameDay(dates.to, date)) {
-        events.push({
-          type: 'hotel',
-          title: `Check-out: ${hotel.data.name}`,
-          time: '11:00 AM', // Default check-out time
-          details: hotel.data.address || '',
-          color: 'bg-red-100 border-red-500'
-        });
-      }
-    }
-    
-    // Add custom notes for this date
-    const notesForDate = customNotes.filter(note => isSameDay(note.date, date));
-    for (const note of notesForDate) {
-      events.push({
-        type: 'note',
-        title: note.title,
-        details: note.content,
-        id: note.id,
-        color: note.color || 'bg-amber-100 border-amber-500'
-      });
-    }
-    
-    return events.sort((a, b) => {
-      if (a.time && b.time) {
-        return a.time.localeCompare(b.time);
-      }
-      return 0;
-    });
-  };
-
-  const renderCalendar = () => {
-    if (calendarView === 'day') {
-      return renderDayView();
-    } else if (calendarView === 'week') {
-      return renderWeekView();
-    } else if (calendarView === 'month') {
-      return renderMonthView();
+    if (currentNote.id) {
+      // Edit existing note
+      setCustomNotes(prev => prev.map(note => note.id === currentNote.id ? newNote : note));
     } else {
-      return renderYearView();
-    }
-  };
-
-  const renderDayView = () => {
-    const events = getEventsForDate(currentDate);
-    
-    return (
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-        <div className="p-6">
-          <h2 className="text-2xl font-bold mb-6">{format(currentDate, 'EEEE, MMMM d, yyyy')}</h2>
-          
-          {events.length === 0 ? (
-            <div className="text-center py-10 text-gray-500 dark:text-gray-400">
-              <Calendar className="h-12 w-12 mx-auto mb-4 opacity-30" />
-              <p>No events scheduled for this day</p>
-              <button 
-                onClick={() => {
-                  setSelectedDate(currentDate);
-                  setCurrentNote({ id: '', date: currentDate, title: '', content: '', color: 'bg-amber-100 border-amber-500' });
-                  setNoteModalOpen(true);
-                }}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 inline-flex items-center gap-2"
-              >
-                <Plus size={16} />
-                Add Note
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {events.map((event, index) => (
-                <div 
-                  key={index} 
-                  className={`p-4 border-l-4 rounded-r-lg ${event.color || 'bg-gray-100 border-gray-500'}`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-medium">{event.title}</h3>
-                      {event.time && <p className="text-sm text-gray-600 dark:text-gray-400">{event.time}</p>}
-                      {event.details && <p className="mt-1 text-gray-700 dark:text-gray-300">{event.details}</p>}
-                    </div>
-                    
-                    {event.type === 'note' && (
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => {
-                            const note = customNotes.find(n => n.id === event.id);
-                            if (note) {
-                              setCurrentNote({...note, color: note.color || 'bg-amber-100 border-amber-500'});
-                              setSelectedDate(note.date);
-                              setNoteModalOpen(true);
-                            }
-                          }}
-                          className="p-1 text-blue-600 hover:bg-blue-100 rounded"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-              
-              <button 
-                onClick={() => {
-                  setSelectedDate(currentDate);
-                  setCurrentNote({ id: '', date: currentDate, title: '', content: '', color: 'bg-amber-100 border-amber-500' });
-                  setNoteModalOpen(true);
-                }}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 inline-flex items-center gap-2"
-              >
-                <Plus size={16} />
-                Add Note
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const renderWeekView = () => {
-    const startDate = startOfWeek(currentDate);
-    const endDate = endOfWeek(currentDate);
-    const days = [];
-    
-    for (let i = 0; i < 7; i++) {
-      const day = addDays(startDate, i);
-      days.push(day);
+      // Add new note
+      setCustomNotes(prev => [...prev, newNote]);
     }
     
-    return (
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-        <div className="p-6">
-          <h2 className="text-2xl font-bold mb-6">
-            {format(startDate, 'MMM d')} - {format(endDate, 'MMM d, yyyy')}
-          </h2>
-          
-          <div className="grid grid-cols-7 gap-4">
-            {days.map((day, index) => {
-              const events = getEventsForDate(day);
-              const isToday = isSameDay(day, new Date());
-              const isSelected = selectedDate && isSameDay(day, selectedDate);
-              const hasEvents = events.length > 0;
-              
-              return (
-                <div 
-                  key={index} 
-                  className={`border rounded-lg overflow-hidden ${
-                    isToday ? 'border-blue-500' : 'border-gray-200 dark:border-gray-700'
-                  } ${
-                    isSelected ? 'ring-2 ring-blue-500' : ''
-                  } ${
-                    hasEvents ? 'bg-blue-50 dark:bg-blue-900/20' : ''
-                  }`}
-                >
-                  <div 
-                    className={`p-2 text-center font-medium ${
-                      isToday ? 'bg-blue-500 text-white' : hasEvents ? 'bg-blue-100 dark:bg-blue-800' : 'bg-gray-100 dark:bg-gray-700'
-                    }`}
-                  >
-                    {format(day, 'EEE')}
-                    <div className={`${isToday ? 'text-white' : hasEvents ? 'text-blue-800 dark:text-blue-200' : 'text-gray-600 dark:text-gray-400'} font-semibold`}>
-                      {format(day, 'd')}
-                      {hasEvents && (
-                        <span className="relative inline-flex w-1.5 h-1.5 bg-blue-600 dark:bg-blue-400 rounded-full ml-1 -top-2"></span>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div 
-                    className="p-2 min-h-[100px] cursor-pointer"
-                    onClick={() => {
-                      setSelectedDate(day);
-                      setCurrentDate(day);
-                      setCalendarView('day');
-                    }}
-                  >
-                    {events.length > 0 ? (
-                      <div className="space-y-1">
-                        {events.slice(0, 3).map((event, idx) => (
-                          <div 
-                            key={idx} 
-                            className={`p-1 text-xs rounded truncate ${event.color || 'bg-gray-100'}`}
-                            title={event.title}
-                          >
-                            {event.time && <span className="font-medium mr-1">{event.time}</span>}
-                            {event.title}
-                          </div>
-                        ))}
-                        {events.length > 3 && (
-                          <div className="text-xs text-center text-gray-500 dark:text-gray-400">
-                            +{events.length - 3} more
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-gray-400 dark:text-gray-600">
-                        <Plus size={16} className="opacity-50" />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    );
+    setNoteModalOpen(false);
+    setCurrentNote(null);
   };
 
-  const renderMonthView = () => {
-    const firstDayOfMonth = startOfMonth(currentDate);
-    const lastDayOfMonth = endOfMonth(currentDate);
-    const startDate = startOfWeek(firstDayOfMonth);
-    
-    const days = [];
-    let day = startDate;
-    
-    // Generate 6 weeks (42 days) to ensure we cover the month
-    for (let i = 0; i < 42; i++) {
-      days.push(day);
-      day = addDays(day, 1);
-    }
-    
-    return (
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-        <div className="p-6">
-          <h2 className="text-2xl font-bold mb-6">{format(currentDate, 'MMMM yyyy')}</h2>
-          
-          <div className="grid grid-cols-7 gap-2">
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((dayName, index) => (
-              <div key={index} className="text-center font-medium text-gray-500 dark:text-gray-400 p-2">
-                {dayName}
-              </div>
-            ))}
-            
-            {days.map((day, index) => {
-              const isCurrentMonth = isSameMonth(day, currentDate);
-              const isToday = isSameDay(day, new Date());
-              const isSelected = selectedDate && isSameDay(day, selectedDate);
-              const events = getEventsForDate(day);
-              const hasEvents = events.length > 0;
-              
-              return (
-                <div 
-                  key={index} 
-                  className={`border rounded-lg overflow-hidden ${
-                    !isCurrentMonth ? 'opacity-40' : ''
-                  } ${
-                    isToday ? 'border-blue-500' : 'border-gray-200 dark:border-gray-700'
-                  } ${
-                    isSelected ? 'ring-2 ring-blue-500' : ''
-                  } ${
-                    hasEvents && isCurrentMonth ? 'bg-blue-50 dark:bg-blue-900/20' : ''
-                  }`}
-                  onClick={() => {
-                    setSelectedDate(day);
-                    setCurrentDate(day);
-                    setCalendarView('day');
-                  }}
-                >
-                  <div 
-                    className={`p-1 text-center ${
-                      isToday ? 'bg-blue-500 text-white' : hasEvents ? 'font-semibold' : ''
-                    }`}
-                  >
-                    {format(day, 'd')}
-                  </div>
-                  
-                  <div className="min-h-[40px] p-1">
-                    {events.length > 0 && (
-                      <div className="space-y-1">
-                        {events.slice(0, 2).map((event, idx) => (
-                          <div 
-                            key={idx} 
-                            className={`h-2 rounded-full ${
-                              event.type === 'flight' ? 'bg-blue-500' :
-                              event.type === 'hotel' ? 'bg-purple-500' :
-                              'bg-amber-500'
-                            }`}
-                            title={event.title}
-                          />
-                        ))}
-                        {events.length > 2 && (
-                          <div className="text-[10px] text-center text-gray-500">
-                            +{events.length - 2}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderYearView = () => {
-    const months = [];
-    
-    for (let i = 0; i < 12; i++) {
-      months.push(new Date(currentDate.getFullYear(), i, 1));
-    }
-    
-    return (
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-        <div className="p-6">
-          <h2 className="text-2xl font-bold mb-6">{format(currentDate, 'yyyy')}</h2>
-          
-          <div className="grid grid-cols-3 gap-6">
-            {months.map((month, index) => {
-              const isCurrentMonth = month.getMonth() === new Date().getMonth() && 
-                                    month.getFullYear() === new Date().getFullYear();
-              
-              // Check if this month has any events
-              const hasEvents = (() => {
-                const firstDay = startOfMonth(month);
-                const lastDay = endOfMonth(month);
-                let currentDay = firstDay;
-                
-                while (currentDay <= lastDay) {
-                  if (getEventsForDate(currentDay).length > 0) {
-                    return true;
-                  }
-                  currentDay = addDays(currentDay, 1);
-                }
-                
-                return false;
-              })();
-              
-              return (
-                <div 
-                  key={index} 
-                  className={`border rounded-lg overflow-hidden cursor-pointer hover:border-blue-500 ${
-                    isCurrentMonth ? 'border-blue-500' : 'border-gray-200 dark:border-gray-700'
-                  } ${
-                    hasEvents ? 'bg-blue-50 dark:bg-blue-900/10' : ''
-                  }`}
-                  onClick={() => {
-                    setCurrentDate(month);
-                    setCalendarView('month');
-                  }}
-                >
-                  <div 
-                    className={`p-2 text-center font-medium ${
-                      isCurrentMonth ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-gray-700'
-                    }`}
-                  >
-                    {format(month, 'MMMM')}
-                    {hasEvents && (
-                      <span className="inline-block w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full ml-2"></span>
-                    )}
-                  </div>
-                  
-                  <div className="p-2 text-center text-sm text-gray-600 dark:text-gray-400">
-                    {format(month, 'yyyy')}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    );
+  const handleAddNote = (date: Date) => {
+    setSelectedDate(date);
+    setCurrentNote({ id: '', date, title: '', content: '', color: 'bg-amber-100 border-amber-500' });
+    setNoteModalOpen(true);
   };
 
   const toggleCalendarView = () => {
     setShowCalendarView(!showCalendarView);
   };
 
-  const getCurrentViewName = () => {
-    switch(calendarView) {
-      case 'day': return 'Day View';
-      case 'week': return 'Week View';
-      case 'month': return 'Month View';
-      case 'year': return 'Year View';
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-16">
-      {/* Header - Adjust positioning to account for navbar */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm sticky top-16 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Header - only show when not in calendar view */}
+      {!showCalendarView && (
+        <header className="bg-transparent shadow-sm z-20 pt-20 relative">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+            <div className="flex items-center justify-between">
               <button 
-                onClick={() => showCalendarView ? toggleCalendarView() : router.push('/my-itineraries')}
-                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                onClick={() => router.push('/my-itineraries')}
+                className="flex items-center gap-1 px-2.5 py-1 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
               >
-                <ArrowLeft size={20} />
+                <ArrowLeft size={14} />
+                <span className="hidden sm:inline">Back</span>
               </button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{itinerary.name}</h1>
-                {itinerary.description && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{itinerary.description}</p>
-                )}
-              </div>
-            </div>
-            
-            {/* View Toggle Button */}
-            <button
-              onClick={toggleCalendarView}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2"
-            >
-              {showCalendarView ? (
-                <>
-                  <ArrowLeft size={16} />
-                  Back to Itinerary
-                </>
-              ) : (
-                <>
-                  <Calendar size={16} />
-                  Calendar View
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </header>
 
-      {/* Main content */}
-      <main className="max-w-7xl mx-auto px-4 py-8 pt-6 sm:px-6 lg:px-8">
+              <h1 className="text-lg font-medium truncate max-w-[50%] mx-auto text-center text-gray-900 dark:text-white absolute left-1/2 transform -translate-x-1/2">
+                {itinerary.name}
+              </h1>
+              
+              <button 
+                onClick={toggleCalendarView}
+                className="flex items-center gap-1 px-2.5 py-1 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800"
+              >
+                <Calendar size={14} />
+                <span className="hidden sm:inline">Calendar</span>
+              </button>
+            </div>
+          </div>
+        </header>
+      )}
+
+      <main className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 ${showCalendarView ? 'pt-20' : ''}`}>
         {showCalendarView ? (
           <div className="space-y-6">
-            {/* Calendar Controls */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                {/* View selector */}
-                <div className="flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-                  <button
-                    onClick={() => setCalendarView('year')}
-                    className={`px-3 py-1 text-sm rounded-md ${
-                      calendarView === 'year' 
-                        ? 'bg-white dark:bg-gray-600 shadow-sm font-medium' 
-                        : 'text-gray-600 dark:text-gray-300'
-                    }`}
-                  >
-                    Year
-                  </button>
-                  <button
-                    onClick={() => setCalendarView('month')}
-                    className={`px-3 py-1 text-sm rounded-md ${
-                      calendarView === 'month' 
-                        ? 'bg-white dark:bg-gray-600 shadow-sm font-medium' 
-                        : 'text-gray-600 dark:text-gray-300'
-                    }`}
-                  >
-                    Month
-                  </button>
-                  <button
-                    onClick={() => setCalendarView('week')}
-                    className={`px-3 py-1 text-sm rounded-md ${
-                      calendarView === 'week' 
-                        ? 'bg-white dark:bg-gray-600 shadow-sm font-medium' 
-                        : 'text-gray-600 dark:text-gray-300'
-                    }`}
-                  >
-                    Week
-                  </button>
-                  <button
-                    onClick={() => setCalendarView('day')}
-                    className={`px-3 py-1 text-sm rounded-md ${
-                      calendarView === 'day' 
-                        ? 'bg-white dark:bg-gray-600 shadow-sm font-medium' 
-                        : 'text-gray-600 dark:text-gray-300'
-                    }`}
-                  >
-                    Day
-                  </button>
-                </div>
-                
-                {/* Navigation controls */}
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={navigatePrevious}
-                    className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
-                    aria-label={`Previous ${calendarView}`}
-                  >
-                    <ChevronLeft size={20} />
-                  </button>
-                  
-                  <button
-                    onClick={navigateToday}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium flex items-center gap-1"
-                  >
-                    <Calendar size={14} />
-                    {getCurrentViewName()}
-                  </button>
-                  
-                  <button
-                    onClick={navigateNext}
-                    className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
-                    aria-label={`Next ${calendarView}`}
-                  >
-                    <ChevronRight size={20} />
-                  </button>
-                </div>
-              </div>
-            </div>
+            <button 
+              onClick={toggleCalendarView}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            >
+              <ArrowLeft size={16} />
+              Back to Itinerary
+            </button>
             
-            {/* Calendar */}
-            {renderCalendar()}
-            
-            {/* Legend */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
-              <h3 className="font-medium mb-3">Legend</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-full bg-blue-500"></div>
-                  <span className="text-sm">Flight</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-full bg-green-500"></div>
-                  <span className="text-sm">Arrival</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-full bg-purple-500"></div>
-                  <span className="text-sm">Hotel</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-full bg-amber-500"></div>
-                  <span className="text-sm">Note</span>
-                </div>
-              </div>
-            </div>
-            
-            {/* Quick Add Note */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 className="text-xl font-semibold">Quick Add Note</h2>
-              </div>
-              <div className="p-6">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Date
-                    </label>
-                    <input 
-                      type="date" 
-                      value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''}
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          setSelectedDate(new Date(e.target.value));
-                        }
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
-                    />
-                  </div>
-                  
-                  <button 
-                    onClick={() => {
-                      if (selectedDate) {
-                        setCurrentNote({ id: '', date: selectedDate, title: '', content: '', color: 'bg-amber-100 border-amber-500' });
-                        setNoteModalOpen(true);
-                      } else {
-                        alert('Please select a date first');
-                      }
-                    }}
-                    className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
-                    disabled={!selectedDate}
-                  >
-                    <Plus size={16} />
-                    Add Note for {selectedDate ? format(selectedDate, 'MMM d, yyyy') : 'Selected Date'}
-                  </button>
-                </div>
-              </div>
-            </div>
+            {/* Calendar View using the new component */}
+            <CalendarContainer
+              flightSelections={flightSelections}
+              hotelSelections={hotelSelections}
+              hotelDates={Object.fromEntries(
+                Object.entries(hotelDates).filter(([_, v]) => v !== undefined)
+              ) as Record<string, DateRange>}
+              customNotes={customNotes}
+              onAddNote={handleAddNote}
+            />
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Main Content Column */}
             <section className="lg:col-span-2 space-y-6">
               {/* Flights Section */}
               {sortedFlights.length > 0 && (
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Plane className="h-5 w-5 text-blue-500" />
-                      <h2 className="text-xl font-semibold">Flights</h2>
-                    </div>
-                    <button 
-                      onClick={() => {
-                        toggleCalendarView();
-                        setCalendarView('day');
-                        if (sortedFlights.length > 0 && sortedFlights[0].data.flights.length > 0) {
-                          const firstFlightDate = new Date(sortedFlights[0].data.flights[0].departure_airport.time);
-                          setCurrentDate(firstFlightDate);
-                          setSelectedDate(firstFlightDate);
-                        }
-                      }}
-                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                    >
-                      <Calendar size={14} />
-                      View in Calendar
-                    </button>
+                  <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+                    <Plane className="h-5 w-5 text-blue-500" />
+                    <h2 className="text-xl font-semibold">Flights</h2>
                   </div>
                   <div className="divide-y divide-gray-200 dark:divide-gray-700">
                     {sortedFlights.map((flight) => (
@@ -954,28 +366,9 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
               {/* Hotels Section */}
               {hotelSelections.length > 0 && (
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Hotel className="h-5 w-5 text-blue-500" />
-                      <h2 className="text-xl font-semibold">Accommodations</h2>
-                    </div>
-                    <button 
-                      onClick={() => {
-                        toggleCalendarView();
-                        setCalendarView('month');
-                        if (hotelSelections.length > 0 && hotelDates[hotelSelections[0].id]?.from) {
-                          const firstHotelDate = hotelDates[hotelSelections[0].id]?.from;
-                          if (firstHotelDate) {
-                            setCurrentDate(firstHotelDate);
-                            setSelectedDate(firstHotelDate);
-                          }
-                        }
-                      }}
-                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                    >
-                      <Calendar size={14} />
-                      View in Calendar
-                    </button>
+                  <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+                    <Plane className="h-5 w-5 text-blue-500" />
+                    <h2 className="text-xl font-semibold">Accommodations</h2>
                   </div>
                   <div className="divide-y divide-gray-200 dark:divide-gray-700">
                     {hotelSelections.map((hotel) => {
@@ -994,14 +387,84 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
                         <div key={hotel.id} className="p-6">
                           <div className="flex flex-col md:flex-row gap-6">
                             {hotel.data.images && hotel.data.images.length > 0 && (
-                              <div className="md:w-1/3">
-                                <img 
-                                  src={typeof hotel.data.images[0] === 'string' 
-                                    ? hotel.data.images[0] 
-                                    : (hotel.data.images[0] as any).url || ''} 
-                                  alt={hotel.data.name} 
-                                  className="w-full h-48 object-cover rounded-lg"
-                                />
+                              <div className="md:w-1/3 relative">
+                                {(() => {
+                                  // State for current image index (using useState hook)
+                                  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+                                  
+                                  // Function to get valid image URL from an image entry
+                                  const getImageUrl = (imageData: any) => {
+                                    if (typeof imageData === 'string') {
+                                      return imageData || null;
+                                    } else if (imageData && imageData.url) {
+                                      return imageData.url || null;
+                                    }
+                                    return null;
+                                  };
+                                  
+                                  // Get all valid image URLs
+                                  const validImageUrls = hotel.data.images
+                                    .map(getImageUrl)
+                                    .filter(url => url !== null);
+                                  
+                                  // If no valid images, show placeholder
+                                  if (validImageUrls.length === 0) {
+                                    return (
+                                      <div className="w-full h-48 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                                        <Hotel className="h-12 w-12 text-gray-400 dark:text-gray-500" />
+                                      </div>
+                                    );
+                                  }
+                                  
+                                  // Show current image with navigation controls
+                                  return (
+                                    <>
+                                      <img 
+                                        src={validImageUrls[currentImageIndex]}
+                                        alt={`${hotel.data.name} - Image ${currentImageIndex + 1}`}
+                                        className="w-full h-48 object-cover rounded-lg"
+                                      />
+                                      
+                                      {/* Only show navigation if there are multiple images */}
+                                      {validImageUrls.length > 1 && (
+                                        <>
+                                          {/* Left navigation button */}
+                                          <button 
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              setCurrentImageIndex((prev) => 
+                                                prev === 0 ? validImageUrls.length - 1 : prev - 1
+                                              );
+                                            }}
+                                            className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-1 rounded-full hover:bg-black/70"
+                                            aria-label="Previous image"
+                                          >
+                                            <ChevronLeft size={20} />
+                                          </button>
+                                          
+                                          {/* Right navigation button */}
+                                          <button
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              setCurrentImageIndex((prev) => 
+                                                prev === validImageUrls.length - 1 ? 0 : prev + 1
+                                              );
+                                            }}
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-1 rounded-full hover:bg-black/70"
+                                            aria-label="Next image"
+                                          >
+                                            <ChevronRight size={20} />
+                                          </button>
+                                          
+                                          {/* Image counter indicator */}
+                                          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 text-white px-2 py-1 rounded-full text-xs">
+                                            {currentImageIndex + 1} / {validImageUrls.length}
+                                          </div>
+                                        </>
+                                      )}
+                                    </>
+                                  );
+                                })()}
                               </div>
                             )}
                             
@@ -1045,66 +508,16 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
               )}
               
               {/* Activities Section */}
-              {activitySelections.length > 0 && (
+              {activitySelections && activitySelections.length > 0 && (
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
                   <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
                     <Bookmark className="h-5 w-5 text-blue-500" />
-                    <h2 className="text-xl font-semibold">Activities & Notes</h2>
+                    <h2 className="text-xl font-semibold">Activities</h2>
                   </div>
                   <div className="divide-y divide-gray-200 dark:divide-gray-700">
                     {activitySelections.map((activity) => (
                       <div key={activity.id} className="p-6">
-                        {/* Activity content (unchanged) */}
-                        {/* ... */}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              {/* Custom Notes Section */}
-              {customNotes.length > 0 && (
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
-                      <h2 className="text-xl font-semibold">Your Notes</h2>
-                    </div>
-                    <button 
-                      onClick={() => {
-                        toggleCalendarView();
-                        setCalendarView('month');
-                      }}
-                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                    >
-                      <Calendar size={14} />
-                      View in Calendar
-                    </button>
-                  </div>
-                  <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {customNotes.map((note) => (
-                      <div key={note.id} className={`p-6 ${note.color || 'bg-amber-50 dark:bg-amber-900/20'}`}>
-                        <div className="flex justify-between">
-                          <div>
-                            <h3 className="font-medium text-lg">{note.title}</h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                              {format(note.date, 'EEEE, MMMM d, yyyy')}
-                            </p>
-                            <p className="whitespace-pre-wrap">{note.content}</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <button 
-                              onClick={() => {
-                                setCurrentNote({...note, color: note.color || 'bg-amber-100 border-amber-500'});
-                                setSelectedDate(note.date);
-                                setNoteModalOpen(true);
-                              }}
-                              className="p-1 text-blue-600 hover:bg-blue-100 rounded"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                            </button>
-                          </div>
-                        </div>
+                        <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line">{activity.data.description}</p>
                       </div>
                     ))}
                   </div>
@@ -1115,7 +528,7 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
             {/* Sidebar - Summary */}
             <section className="space-y-6">
               {/* Summary Section */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden sticky top-32">
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden sticky top-24 z-20">
                 <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                   <h2 className="text-xl font-semibold">Trip Summary</h2>
                 </div>
@@ -1196,48 +609,6 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
                   >
                     Print Itinerary
                   </button>
-                </div>
-              </div>
-              
-              {/* Quick Add Note */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                  <h2 className="text-xl font-semibold">Quick Add Note</h2>
-                </div>
-                <div className="p-6">
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Date
-                      </label>
-                      <input 
-                        type="date" 
-                        value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''}
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            setSelectedDate(new Date(e.target.value));
-                          }
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
-                      />
-                    </div>
-                    
-                    <button 
-                      onClick={() => {
-                        if (selectedDate) {
-                          setCurrentNote({ id: '', date: selectedDate, title: '', content: '', color: 'bg-amber-100 border-amber-500' });
-                          setNoteModalOpen(true);
-                        } else {
-                          alert('Please select a date first');
-                        }
-                      }}
-                      className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
-                      disabled={!selectedDate}
-                    >
-                      <Plus size={16} />
-                      Add Note
-                    </button>
-                  </div>
                 </div>
               </div>
             </section>
