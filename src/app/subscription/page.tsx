@@ -30,9 +30,9 @@ const pricingTiers: PricingTier[] = [
     features: [
       "AI suggestions and web crawl",
       "Book 3 itineraries per month",
-      "Flight and hotel search",
       "Itinerary builder and planner",
-      "Map integration"
+      "Map integration",
+      "Travel agent support"
     ],
     priceId: {
       monthly: "price_1R59roIzmoU5zafNovVMqvVK",
