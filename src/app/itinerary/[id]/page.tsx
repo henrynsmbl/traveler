@@ -413,6 +413,7 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
               const events = getEventsForDate(day);
               const isToday = isSameDay(day, new Date());
               const isSelected = selectedDate && isSameDay(day, selectedDate);
+              const hasEvents = events.length > 0;
               
               return (
                 <div 
@@ -421,16 +422,21 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
                     isToday ? 'border-blue-500' : 'border-gray-200 dark:border-gray-700'
                   } ${
                     isSelected ? 'ring-2 ring-blue-500' : ''
+                  } ${
+                    hasEvents ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                   }`}
                 >
                   <div 
                     className={`p-2 text-center font-medium ${
-                      isToday ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-gray-700'
+                      isToday ? 'bg-blue-500 text-white' : hasEvents ? 'bg-blue-100 dark:bg-blue-800' : 'bg-gray-100 dark:bg-gray-700'
                     }`}
                   >
                     {format(day, 'EEE')}
-                    <div className={isToday ? 'text-white' : 'text-gray-600 dark:text-gray-400'}>
+                    <div className={`${isToday ? 'text-white' : hasEvents ? 'text-blue-800 dark:text-blue-200' : 'text-gray-600 dark:text-gray-400'} font-semibold`}>
                       {format(day, 'd')}
+                      {hasEvents && (
+                        <span className="relative inline-flex w-1.5 h-1.5 bg-blue-600 dark:bg-blue-400 rounded-full ml-1 -top-2"></span>
+                      )}
                     </div>
                   </div>
                   
@@ -506,6 +512,7 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
               const isToday = isSameDay(day, new Date());
               const isSelected = selectedDate && isSameDay(day, selectedDate);
               const events = getEventsForDate(day);
+              const hasEvents = events.length > 0;
               
               return (
                 <div 
@@ -516,6 +523,8 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
                     isToday ? 'border-blue-500' : 'border-gray-200 dark:border-gray-700'
                   } ${
                     isSelected ? 'ring-2 ring-blue-500' : ''
+                  } ${
+                    hasEvents && isCurrentMonth ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                   }`}
                   onClick={() => {
                     setSelectedDate(day);
@@ -525,7 +534,7 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
                 >
                   <div 
                     className={`p-1 text-center ${
-                      isToday ? 'bg-blue-500 text-white' : ''
+                      isToday ? 'bg-blue-500 text-white' : hasEvents ? 'font-semibold' : ''
                     }`}
                   >
                     {format(day, 'd')}
@@ -579,11 +588,29 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
               const isCurrentMonth = month.getMonth() === new Date().getMonth() && 
                                     month.getFullYear() === new Date().getFullYear();
               
+              // Check if this month has any events
+              const hasEvents = (() => {
+                const firstDay = startOfMonth(month);
+                const lastDay = endOfMonth(month);
+                let currentDay = firstDay;
+                
+                while (currentDay <= lastDay) {
+                  if (getEventsForDate(currentDay).length > 0) {
+                    return true;
+                  }
+                  currentDay = addDays(currentDay, 1);
+                }
+                
+                return false;
+              })();
+              
               return (
                 <div 
                   key={index} 
                   className={`border rounded-lg overflow-hidden cursor-pointer hover:border-blue-500 ${
                     isCurrentMonth ? 'border-blue-500' : 'border-gray-200 dark:border-gray-700'
+                  } ${
+                    hasEvents ? 'bg-blue-50 dark:bg-blue-900/10' : ''
                   }`}
                   onClick={() => {
                     setCurrentDate(month);
@@ -596,6 +623,9 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
                     }`}
                   >
                     {format(month, 'MMMM')}
+                    {hasEvents && (
+                      <span className="inline-block w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full ml-2"></span>
+                    )}
                   </div>
                   
                   <div className="p-2 text-center text-sm text-gray-600 dark:text-gray-400">
@@ -728,10 +758,10 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
                   
                   <button
                     onClick={navigateToday}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium flex items-center gap-1"
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium flex items-center gap-1"
                   >
-                    <Calendar size={16} />
-                    Today ({getCurrentViewName()})
+                    <Calendar size={14} />
+                    {getCurrentViewName()}
                   </button>
                   
                   <button
@@ -934,9 +964,11 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
                         toggleCalendarView();
                         setCalendarView('month');
                         if (hotelSelections.length > 0 && hotelDates[hotelSelections[0].id]?.from) {
-                          const firstHotelDate = hotelDates[hotelSelections[0].id].from;
-                          setCurrentDate(firstHotelDate);
-                          setSelectedDate(firstHotelDate);
+                          const firstHotelDate = hotelDates[hotelSelections[0].id]?.from;
+                          if (firstHotelDate) {
+                            setCurrentDate(firstHotelDate);
+                            setSelectedDate(firstHotelDate);
+                          }
                         }
                       }}
                       className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
