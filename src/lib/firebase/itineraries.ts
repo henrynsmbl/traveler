@@ -11,6 +11,7 @@ export interface SavedItinerary {
   description?: string;
   selections: Selection[];
   hotelDates: { [key: string]: DateRange | undefined };
+  customNotes?: CustomNote[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -87,6 +88,14 @@ export const updateItinerary = async (
       }
       return acc;
     }, {} as Record<string, any>);
+  }
+  
+  // Convert CustomNote dates if present
+  if (updates.customNotes) {
+    updatedData.customNotes = updates.customNotes.map(note => ({
+      ...note,
+      date: note.date instanceof Date ? Timestamp.fromDate(note.date) : note.date
+    }));
   }
   
   await setDoc(itineraryRef, updatedData, { merge: true });
@@ -166,11 +175,20 @@ export const getItinerary = async (itineraryId: string): Promise<SavedItinerary 
     return acc;
   }, {} as Record<string, DateRange>);
   
+  // Convert custom note dates from Timestamp to Date
+  const customNotes = data.customNotes 
+    ? data.customNotes.map((note: any) => ({
+        ...note,
+        date: note.date instanceof Timestamp ? note.date.toDate() : new Date(note.date)
+      }))
+    : [];
+  
   return {
     ...data,
     id: docSnap.id,
     createdAt,
     updatedAt,
-    hotelDates
+    hotelDates,
+    customNotes
   } as SavedItinerary;
 }; 

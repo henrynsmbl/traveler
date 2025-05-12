@@ -8,15 +8,27 @@ import YearView from './YearView';
 import { CalendarProps, CalendarView, CalendarEvent } from './types';
 import { getEventsForDate, navigateDate, getCurrentViewName } from './utils';
 
+interface CalendarProps {
+  flightSelections: FlightSelection[];
+  hotelSelections: HotelSelection[];
+  hotelDates: Record<string, DateRange>;
+  customNotes: CustomNote[];
+  onAddNote: (date: Date) => void;
+  onDeleteNote: (noteId: string) => Promise<void>;
+  initialDate?: Date | null;
+}
+
 const CalendarContainer: React.FC<CalendarProps> = ({ 
   flightSelections, 
   hotelSelections, 
   hotelDates, 
   customNotes,
-  onAddNote 
+  onAddNote,
+  onDeleteNote,
+  initialDate
 }) => {
   const [calendarView, setCalendarView] = useState<CalendarView>('month');
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(initialDate || new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [eventsByDate, setEventsByDate] = useState<Record<string, CalendarEvent[]>>({});
   

@@ -7,7 +7,7 @@ import { format, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isSa
 import { ArrowLeft, Calendar, MapPin, Plane, Hotel, Bookmark, Send, Save, X, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import type { Selection, FlightSelection, HotelSelection, ActivitySelection } from '@/types/selections';
 import type { DateRange } from 'react-day-picker';
-import { getItinerary, SavedItinerary } from '@/lib/firebase/itineraries';
+import { getItinerary, SavedItinerary, updateItinerary } from '@/lib/firebase/itineraries';
 import { createBooking, calculateItineraryTotal } from '@/lib/firebase/bookings';
 import CalendarContainer from '@/components/calendar/CalendarContainer';
 import { CustomNote } from '@/types/notes';
@@ -67,6 +67,10 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
   const [noteModalOpen, setNoteModalOpen] = useState(false);
   const [customNotes, setCustomNotes] = useState<CustomNote[]>([]);
   const [showCalendarView, setShowCalendarView] = useState(false);
+  const [initialCalendarDate, setInitialCalendarDate] = useState<Date | null>(null);
+  const [isPastItinerary, setIsPastItinerary] = useState(false);
+  const [isSavingNote, setIsSavingNote] = useState(false);
+  const [noteError, setNoteError] = useState('');
   
   // Unwrap params if it's a Promise
   const itineraryId = params instanceof Promise ? React.use(params).id : params.id;
@@ -94,6 +98,14 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
         }
         
         setItinerary(fetchedItinerary);
+        
+        // Set custom notes from the fetched itinerary
+        if (fetchedItinerary.customNotes) {
+          setCustomNotes(fetchedItinerary.customNotes);
+        }
+        
+        // Find the earliest date in the itinerary
+        calculateInitialCalendarDate(fetchedItinerary);
       } catch (error) {
         console.error('Error fetching itinerary:', error);
         setError('Failed to load itinerary');
@@ -104,6 +116,126 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
 
     fetchItinerary();
   }, [itineraryId, user, router]);
+
+  // Function to calculate the earliest date in the itinerary
+  const calculateInitialCalendarDate = (itinerary: SavedItinerary) => {
+    const dates: Date[] = [];
+
+    // Check flight dates
+    itinerary.selections
+      .filter(s => s.type === 'flight')
+      .forEach((flight: FlightSelection) => {
+        if (flight.data.flights && flight.data.flights.length > 0) {
+          const departureTime = flight.data.flights[0].departure_airport.time;
+          if (departureTime) {
+            dates.push(new Date(departureTime));
+          }
+        }
+      });
+
+    // Check hotel dates
+    Object.entries(itinerary.hotelDates).forEach(([hotelId, dateRange]) => {
+      if (dateRange?.from) {
+        dates.push(new Date(dateRange.from));
+      }
+    });
+
+    // Check custom notes (if any)
+    customNotes.forEach(note => {
+      if (note.date) {
+        dates.push(new Date(note.date));
+      }
+    });
+
+    // Sort dates and get the earliest
+    if (dates.length > 0) {
+      dates.sort((a, b) => a.getTime() - b.getTime());
+      const earliestDate = dates[0];
+      setInitialCalendarDate(earliestDate);
+      
+      // Check if the earliest date is in the past
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      setIsPastItinerary(earliestDate < today);
+    } else {
+      // If no dates found, use current date
+      setInitialCalendarDate(new Date());
+      setIsPastItinerary(false);
+    }
+  };
+
+  // Function to save note updates to Firebase
+  const saveNotesToFirebase = async (updatedNotes: CustomNote[]) => {
+    if (!user || !itinerary) return;
+    
+    try {
+      setIsSavingNote(true);
+      setNoteError('');
+      
+      // Update the itinerary in Firebase with the new notes
+      await updateItinerary(itineraryId, {
+        customNotes: updatedNotes
+      });
+      
+      // Update local state
+      setCustomNotes(updatedNotes);
+      
+    } catch (error) {
+      console.error('Error saving notes:', error);
+      setNoteError('Failed to save note. Please try again.');
+    } finally {
+      setIsSavingNote(false);
+    }
+  };
+
+  const handleSaveNote = async () => {
+    if (!currentNote || !selectedDate) return;
+    
+    const newNote: CustomNote = {
+      id: currentNote.id || `note-${Date.now()}`,
+      date: selectedDate,
+      title: currentNote.title,
+      content: currentNote.content,
+      color: currentNote.color
+    };
+    
+    let updatedNotes: CustomNote[];
+    
+    if (currentNote.id) {
+      // Edit existing note
+      updatedNotes = customNotes.map(note => note.id === currentNote.id ? newNote : note);
+    } else {
+      // Add new note
+      updatedNotes = [...customNotes, newNote];
+    }
+    
+    // Save to Firebase first
+    await saveNotesToFirebase(updatedNotes);
+    
+    // Close modal only after successful save
+    if (!noteError) {
+      setNoteModalOpen(false);
+      setCurrentNote(null);
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    // Filter out the note to delete
+    const updatedNotes = customNotes.filter(note => note.id !== noteId);
+    
+    // Save to Firebase
+    await saveNotesToFirebase(updatedNotes);
+  };
+
+  const handleAddNote = (date: Date) => {
+    setSelectedDate(date);
+    setCurrentNote({ id: '', date, title: '', content: '', color: 'bg-amber-100 border-amber-500' });
+    setNoteModalOpen(true);
+  };
+
+  const toggleCalendarView = () => {
+    setShowCalendarView(!showCalendarView);
+  };
 
   if (loading) {
     return (
@@ -186,39 +318,6 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
     }
   };
 
-  const handleSaveNote = () => {
-    if (!currentNote || !selectedDate) return;
-    
-    const newNote: CustomNote = {
-      id: currentNote.id || `note-${Date.now()}`,
-      date: selectedDate,
-      title: currentNote.title,
-      content: currentNote.content,
-      color: currentNote.color
-    };
-    
-    if (currentNote.id) {
-      // Edit existing note
-      setCustomNotes(prev => prev.map(note => note.id === currentNote.id ? newNote : note));
-    } else {
-      // Add new note
-      setCustomNotes(prev => [...prev, newNote]);
-    }
-    
-    setNoteModalOpen(false);
-    setCurrentNote(null);
-  };
-
-  const handleAddNote = (date: Date) => {
-    setSelectedDate(date);
-    setCurrentNote({ id: '', date, title: '', content: '', color: 'bg-amber-100 border-amber-500' });
-    setNoteModalOpen(true);
-  };
-
-  const toggleCalendarView = () => {
-    setShowCalendarView(!showCalendarView);
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header - only show when not in calendar view */}
@@ -261,7 +360,16 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
               Back to Itinerary
             </button>
             
-            {/* Calendar View using the new component */}
+            {isPastItinerary && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 mb-4">
+                <p className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Note: This itinerary shows dates in the past.
+                </p>
+              </div>
+            )}
+            
+            {/* Calendar View using the new component with initialDate prop */}
             <CalendarContainer
               flightSelections={flightSelections}
               hotelSelections={hotelSelections}
@@ -270,6 +378,8 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
               ) as Record<string, DateRange>}
               customNotes={customNotes}
               onAddNote={handleAddNote}
+              onDeleteNote={handleDeleteNote}
+              initialDate={initialCalendarDate}
             />
           </div>
         ) : (
@@ -628,6 +738,7 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
                 onClick={() => {
                   setNoteModalOpen(false);
                   setCurrentNote(null);
+                  setNoteError('');
                 }}
                 className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
               >
@@ -636,6 +747,12 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
             </div>
             
             <div className="p-6 space-y-4">
+              {noteError && (
+                <div className="bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 p-4 rounded-lg text-sm">
+                  {noteError}
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Date
@@ -702,6 +819,7 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
                   onClick={() => {
                     setNoteModalOpen(false);
                     setCurrentNote(null);
+                    setNoteError('');
                   }}
                   className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
@@ -710,10 +828,17 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
                 <button
                   type="button"
                   onClick={handleSaveNote}
-                  disabled={!currentNote?.title || !selectedDate}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!currentNote?.title || !selectedDate || isSavingNote}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  {currentNote?.id ? 'Update Note' : 'Add Note'}
+                  {isSavingNote ? (
+                    <>
+                      <div className="animate-spin h-4 w-4 border border-white border-t-transparent rounded-full"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    currentNote?.id ? 'Update Note' : 'Add Note'
+                  )}
                 </button>
               </div>
             </div>

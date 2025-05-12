@@ -10,20 +10,16 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
 
-    // Add rate limiting
-    function notTooManyRequests() {
-      return request.time > resource.data.lastAccess + duration.value(1, 's');
-    }
-
     // Base rules for user data
     match /users/{userId} {
-      // Allow users to read and write their own data
+      // Allow users to read their own data
       allow read: if isAuthenticated() && isOwner(userId);
-      // Allow writes from both authenticated users and webhook for subscriptions
-      allow write: if isAuthenticated() && (
-        isOwner(userId) || 
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscription']))
-      ) && notTooManyRequests();
+      
+      // Allow users to write their own data
+      allow write: if isAuthenticated() && isOwner(userId);
+      
+      // Allow updates to subscription field from anywhere (webhook)
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscription']);
       
       // Rules for chat sessions subcollection
       match /chatSessions/{sessionId} {
@@ -47,9 +43,43 @@ service cloud.firestore {
       }
     }
 
+    // Add rules for itineraries collection
+    match /itineraries/{itineraryId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // Add rules for selections collection (if needed)
+    match /selections/{selectionId} {
+      allow read, write: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // Add rules for bookings collection
+    match /bookings/{bookingId} {
+      // Allow users to read their own bookings
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      
+      // Allow users to create bookings
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      
+      // Allow users to update their own bookings
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      
+      // For admin access based on email
+      allow read, write: if isAuthenticated() && 
+        (request.auth.token.email == "henry@aitinerary.world");
+        
+      allow read, write: if isAuthenticated() && 
+        (request.auth.token.email == "henry@nsmbl.co");
+        
+      allow read, write: if isAuthenticated() && 
+        (request.auth.token.email == "henrygardner30@gmail.com");
+    }
+
     // Prevent access to all other documents
     match /{document=**} {
       allow read, write: if false;
     }
   }
-} 
+}

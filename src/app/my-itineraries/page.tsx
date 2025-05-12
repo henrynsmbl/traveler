@@ -131,7 +131,7 @@ export default function MyItinerariesPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button 
-                onClick={() => router.back()}
+                onClick={() => router.push('/')}
                 className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
                 <ArrowLeft size={20} />
