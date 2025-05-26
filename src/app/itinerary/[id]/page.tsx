@@ -3,12 +3,14 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthContext';
-import { format } from 'date-fns';
-import { ArrowLeft, Calendar, MapPin, Plane, Hotel, Bookmark, Send, Save, X } from 'lucide-react';
+import { format, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isSameDay, isSameMonth, addMonths, addWeeks, addYears, getDay, getDaysInMonth } from 'date-fns';
+import { ArrowLeft, Calendar, MapPin, Plane, Hotel, Bookmark, Send, Save, X, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import type { Selection, FlightSelection, HotelSelection, ActivitySelection } from '@/types/selections';
 import type { DateRange } from 'react-day-picker';
-import { getItinerary, SavedItinerary } from '@/lib/firebase/itineraries';
+import { getItinerary, SavedItinerary, updateItinerary } from '@/lib/firebase/itineraries';
 import { createBooking, calculateItineraryTotal } from '@/lib/firebase/bookings';
+import CalendarContainer from '@/components/calendar/CalendarContainer';
+import { CustomNote } from '@/types/notes';
 
 // Import the same helper functions from your itinerary page
 const formatDuration = (minutes: number): string => {
@@ -60,6 +62,15 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
   const [bookModalOpen, setBookModalOpen] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
   const [bookingError, setBookingError] = useState('');
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [currentNote, setCurrentNote] = useState<{ id: string; date: Date; title: string; content: string; color: string } | null>(null);
+  const [noteModalOpen, setNoteModalOpen] = useState(false);
+  const [customNotes, setCustomNotes] = useState<CustomNote[]>([]);
+  const [showCalendarView, setShowCalendarView] = useState(false);
+  const [initialCalendarDate, setInitialCalendarDate] = useState<Date | null>(null);
+  const [isPastItinerary, setIsPastItinerary] = useState(false);
+  const [isSavingNote, setIsSavingNote] = useState(false);
+  const [noteError, setNoteError] = useState('');
   
   // Unwrap params if it's a Promise
   const itineraryId = params instanceof Promise ? React.use(params).id : params.id;
@@ -87,6 +98,14 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
         }
         
         setItinerary(fetchedItinerary);
+        
+        // Set custom notes from the fetched itinerary
+        if (fetchedItinerary.customNotes) {
+          setCustomNotes(fetchedItinerary.customNotes);
+        }
+        
+        // Find the earliest date in the itinerary
+        calculateInitialCalendarDate(fetchedItinerary);
       } catch (error) {
         console.error('Error fetching itinerary:', error);
         setError('Failed to load itinerary');
@@ -97,6 +116,126 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
 
     fetchItinerary();
   }, [itineraryId, user, router]);
+
+  // Function to calculate the earliest date in the itinerary
+  const calculateInitialCalendarDate = (itinerary: SavedItinerary) => {
+    const dates: Date[] = [];
+
+    // Check flight dates
+    itinerary.selections
+      .filter(s => s.type === 'flight')
+      .forEach((flight: FlightSelection) => {
+        if (flight.data.flights && flight.data.flights.length > 0) {
+          const departureTime = flight.data.flights[0].departure_airport.time;
+          if (departureTime) {
+            dates.push(new Date(departureTime));
+          }
+        }
+      });
+
+    // Check hotel dates
+    Object.entries(itinerary.hotelDates).forEach(([hotelId, dateRange]) => {
+      if (dateRange?.from) {
+        dates.push(new Date(dateRange.from));
+      }
+    });
+
+    // Check custom notes (if any)
+    customNotes.forEach(note => {
+      if (note.date) {
+        dates.push(new Date(note.date));
+      }
+    });
+
+    // Sort dates and get the earliest
+    if (dates.length > 0) {
+      dates.sort((a, b) => a.getTime() - b.getTime());
+      const earliestDate = dates[0];
+      setInitialCalendarDate(earliestDate);
+      
+      // Check if the earliest date is in the past
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      setIsPastItinerary(earliestDate < today);
+    } else {
+      // If no dates found, use current date
+      setInitialCalendarDate(new Date());
+      setIsPastItinerary(false);
+    }
+  };
+
+  // Function to save note updates to Firebase
+  const saveNotesToFirebase = async (updatedNotes: CustomNote[]) => {
+    if (!user || !itinerary) return;
+    
+    try {
+      setIsSavingNote(true);
+      setNoteError('');
+      
+      // Update the itinerary in Firebase with the new notes
+      await updateItinerary(itineraryId, {
+        customNotes: updatedNotes
+      });
+      
+      // Update local state
+      setCustomNotes(updatedNotes);
+      
+    } catch (error) {
+      console.error('Error saving notes:', error);
+      setNoteError('Failed to save note. Please try again.');
+    } finally {
+      setIsSavingNote(false);
+    }
+  };
+
+  const handleSaveNote = async () => {
+    if (!currentNote || !selectedDate) return;
+    
+    const newNote: CustomNote = {
+      id: currentNote.id || `note-${Date.now()}`,
+      date: selectedDate,
+      title: currentNote.title,
+      content: currentNote.content,
+      color: currentNote.color
+    };
+    
+    let updatedNotes: CustomNote[];
+    
+    if (currentNote.id) {
+      // Edit existing note
+      updatedNotes = customNotes.map(note => note.id === currentNote.id ? newNote : note);
+    } else {
+      // Add new note
+      updatedNotes = [...customNotes, newNote];
+    }
+    
+    // Save to Firebase first
+    await saveNotesToFirebase(updatedNotes);
+    
+    // Close modal only after successful save
+    if (!noteError) {
+      setNoteModalOpen(false);
+      setCurrentNote(null);
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    // Filter out the note to delete
+    const updatedNotes = customNotes.filter(note => note.id !== noteId);
+    
+    // Save to Firebase
+    await saveNotesToFirebase(updatedNotes);
+  };
+
+  const handleAddNote = (date: Date) => {
+    setSelectedDate(date);
+    setCurrentNote({ id: '', date, title: '', content: '', color: 'bg-amber-100 border-amber-500' });
+    setNoteModalOpen(true);
+  };
+
+  const toggleCalendarView = () => {
+    setShowCalendarView(!showCalendarView);
+  };
 
   if (loading) {
     return (
@@ -180,299 +319,534 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-16">
-      {/* Header - Adjust positioning to account for navbar */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm sticky top-16 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Header - only show when not in calendar view */}
+      {!showCalendarView && (
+        <header className="bg-transparent shadow-sm z-20 pt-20 relative">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+            <div className="flex items-center justify-between">
               <button 
                 onClick={() => router.push('/my-itineraries')}
-                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="flex items-center gap-1 px-2.5 py-1 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
               >
-                <ArrowLeft size={20} />
+                <ArrowLeft size={14} />
+                <span className="hidden sm:inline">Back</span>
               </button>
+
+              <h1 className="text-lg font-medium truncate max-w-[50%] mx-auto text-center text-gray-900 dark:text-white absolute left-1/2 transform -translate-x-1/2">
+                {itinerary.name}
+              </h1>
+              
+              <button 
+                onClick={toggleCalendarView}
+                className="flex items-center gap-1 px-2.5 py-1 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800"
+              >
+                <Calendar size={14} />
+                <span className="hidden sm:inline">Calendar</span>
+              </button>
+            </div>
+          </div>
+        </header>
+      )}
+
+      <main className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 ${showCalendarView ? 'pt-20' : ''}`}>
+        {showCalendarView ? (
+          <div className="space-y-6">
+            <button 
+              onClick={toggleCalendarView}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            >
+              <ArrowLeft size={16} />
+              Back to Itinerary
+            </button>
+            
+            {isPastItinerary && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 mb-4">
+                <p className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Note: This itinerary shows dates in the past.
+                </p>
+              </div>
+            )}
+            
+            {/* Calendar View using the new component with initialDate prop */}
+            <CalendarContainer
+              flightSelections={flightSelections}
+              hotelSelections={hotelSelections}
+              hotelDates={Object.fromEntries(
+                Object.entries(hotelDates).filter(([_, v]) => v !== undefined)
+              ) as Record<string, DateRange>}
+              customNotes={customNotes}
+              onAddNote={handleAddNote}
+              onDeleteNote={handleDeleteNote}
+              initialDate={initialCalendarDate}
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Main Content Column */}
+            <section className="lg:col-span-2 space-y-6">
+              {/* Flights Section */}
+              {sortedFlights.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+                    <Plane className="h-5 w-5 text-blue-500" />
+                    <h2 className="text-xl font-semibold">Flights</h2>
+                  </div>
+                  <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {sortedFlights.map((flight) => (
+                      <div key={flight.id} className="p-6 space-y-4">
+                        {flight.data.flights.map((segment, index) => (
+                          <div key={`${flight.id}-${index}`} className="space-y-4">
+                            <div className="flex items-center gap-3 mb-2">
+                              {segment.airline_logo && (
+                                <img 
+                                  src={segment.airline_logo} 
+                                  alt={segment.airline} 
+                                  className="h-8 w-8 object-contain"
+                                />
+                              )}
+                              <div>
+                                <div className="font-medium">{segment.airline} {segment.flight_number}</div>
+                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                  {formatDate(segment.departure_airport.time)}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-stretch">
+                              <div className="flex flex-col items-center mr-4">
+                                <div className="rounded-full w-3 h-3 bg-blue-500"></div>
+                                <div className="w-0.5 flex-grow bg-gray-300 dark:bg-gray-600 my-1"></div>
+                                <div className="rounded-full w-3 h-3 bg-blue-500"></div>
+                              </div>
+                              
+                              <div className="flex-grow space-y-6">
+                                <div>
+                                  <div className="font-medium">
+                                    {formatTime(segment.departure_airport.time)}
+                                  </div>
+                                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                                    {segment.departure_airport.name} ({segment.departure_airport.id})
+                                  </div>
+                                </div>
+                                
+                                <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                                  <div className="flex-grow border-t border-dashed border-gray-300 dark:border-gray-600 mx-2"></div>
+                                  <span>{formatDuration(segment.duration)}</span>
+                                  <div className="flex-grow border-t border-dashed border-gray-300 dark:border-gray-600 mx-2"></div>
+                                </div>
+                                
+                                <div>
+                                  <div className="font-medium">
+                                    {formatTime(segment.arrival_airport.time)}
+                                  </div>
+                                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                                    {segment.arrival_airport.name} ({segment.arrival_airport.id})
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="ml-4 text-right">
+                                <div className="text-sm font-medium">
+                                  {segment.travel_class}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {flight.data.layovers && flight.data.layovers[index] && (
+                              <div className="ml-7 pl-4 border-l border-gray-300 dark:border-gray-600 text-sm text-gray-500 dark:text-gray-400">
+                                <div className="py-2">
+                                  Layover at {flight.data.layovers[index].name}: {formatDuration(flight.data.layovers[index].duration)}
+                                  {flight.data.layovers[index].overnight && ' (Overnight)'}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        <div className="mt-4 text-right text-lg font-semibold text-blue-600 dark:text-blue-400">
+                          ${flight.data.price.toFixed(2)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Hotels Section */}
+              {hotelSelections.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+                    <Plane className="h-5 w-5 text-blue-500" />
+                    <h2 className="text-xl font-semibold">Accommodations</h2>
+                  </div>
+                  <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {hotelSelections.map((hotel) => {
+                      const dates = hotelDates[hotel.id];
+                      const nightlyRate = hotel.data.rate_per_night?.lowest?.replace(/[^0-9.]/g, '') || '0';
+                      
+                      let totalPrice = parseFloat(nightlyRate);
+                      let nights = 1;
+                      
+                      if (dates?.from && dates?.to) {
+                        nights = Math.ceil((dates.to.getTime() - dates.from.getTime()) / (1000 * 60 * 60 * 24));
+                        totalPrice = parseFloat(nightlyRate) * nights;
+                      }
+                      
+                      return (
+                        <div key={hotel.id} className="p-6">
+                          <div className="flex flex-col md:flex-row gap-6">
+                            {hotel.data.images && hotel.data.images.length > 0 && (
+                              <div className="md:w-1/3 relative">
+                                {(() => {
+                                  // State for current image index (using useState hook)
+                                  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+                                  
+                                  // Function to get valid image URL from an image entry
+                                  const getImageUrl = (imageData: any) => {
+                                    if (typeof imageData === 'string') {
+                                      return imageData || null;
+                                    } else if (imageData && imageData.url) {
+                                      return imageData.url || null;
+                                    }
+                                    return null;
+                                  };
+                                  
+                                  // Get all valid image URLs
+                                  const validImageUrls = hotel.data.images
+                                    .map(getImageUrl)
+                                    .filter(url => url !== null);
+                                  
+                                  // If no valid images, show placeholder
+                                  if (validImageUrls.length === 0) {
+                                    return (
+                                      <div className="w-full h-48 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                                        <Hotel className="h-12 w-12 text-gray-400 dark:text-gray-500" />
+                                      </div>
+                                    );
+                                  }
+                                  
+                                  // Show current image with navigation controls
+                                  return (
+                                    <>
+                                      <img 
+                                        src={validImageUrls[currentImageIndex]}
+                                        alt={`${hotel.data.name} - Image ${currentImageIndex + 1}`}
+                                        className="w-full h-48 object-cover rounded-lg"
+                                      />
+                                      
+                                      {/* Only show navigation if there are multiple images */}
+                                      {validImageUrls.length > 1 && (
+                                        <>
+                                          {/* Left navigation button */}
+                                          <button 
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              setCurrentImageIndex((prev) => 
+                                                prev === 0 ? validImageUrls.length - 1 : prev - 1
+                                              );
+                                            }}
+                                            className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-1 rounded-full hover:bg-black/70"
+                                            aria-label="Previous image"
+                                          >
+                                            <ChevronLeft size={20} />
+                                          </button>
+                                          
+                                          {/* Right navigation button */}
+                                          <button
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              setCurrentImageIndex((prev) => 
+                                                prev === validImageUrls.length - 1 ? 0 : prev + 1
+                                              );
+                                            }}
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-1 rounded-full hover:bg-black/70"
+                                            aria-label="Next image"
+                                          >
+                                            <ChevronRight size={20} />
+                                          </button>
+                                          
+                                          {/* Image counter indicator */}
+                                          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 text-white px-2 py-1 rounded-full text-xs">
+                                            {currentImageIndex + 1} / {validImageUrls.length}
+                                          </div>
+                                        </>
+                                      )}
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            )}
+                            
+                            <div className="md:w-2/3 space-y-4">
+                              <h3 className="text-xl font-medium">{hotel.data.name}</h3>
+                              
+                              {hotel.data.address && (
+                                <div className="flex items-start gap-2 text-gray-600 dark:text-gray-400">
+                                  <MapPin className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                                  <span>{hotel.data.address}</span>
+                                </div>
+                              )}
+                              
+                              {dates?.from && dates?.to && (
+                                <div className="flex items-start gap-2 text-gray-600 dark:text-gray-400">
+                                  <Calendar className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                                  <div>
+                                    <div>
+                                      {format(dates.from, 'MMM d, yyyy')} - {format(dates.to, 'MMM d, yyyy')}
+                                    </div>
+                                    <div className="text-sm">{nights} night{nights !== 1 ? 's' : ''}</div>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              <div className="text-right">
+                                <div className="text-sm text-gray-600 dark:text-gray-400">
+                                  {hotel.data.rate_per_night?.lowest} per night
+                                </div>
+                                <div className="text-lg font-semibold text-blue-600 dark:text-blue-400">
+                                  ${totalPrice.toFixed(2)} total
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              {/* Activities Section */}
+              {activitySelections && activitySelections.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+                    <Bookmark className="h-5 w-5 text-blue-500" />
+                    <h2 className="text-xl font-semibold">Activities</h2>
+                  </div>
+                  <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {activitySelections.map((activity) => (
+                      <div key={activity.id} className="p-6">
+                        <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line">{activity.data.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
+
+            {/* Sidebar - Summary */}
+            <section className="space-y-6">
+              {/* Summary Section */}
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden sticky top-24 z-20">
+                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                  <h2 className="text-xl font-semibold">Trip Summary</h2>
+                </div>
+                <div className="p-6 space-y-4">
+                  {/* Calculate total price */}
+                  {(() => {
+                    let totalPrice = 0;
+                    
+                    // Add flight prices
+                    flightSelections.forEach(flight => {
+                      totalPrice += flight.data.price;
+                    });
+                    
+                    // Add hotel prices
+                    hotelSelections.forEach(hotel => {
+                      const dates = hotelDates[hotel.id];
+                      if (dates?.from && dates?.to && hotel.data.rate_per_night?.lowest) {
+                        const nights = Math.ceil((dates.to.getTime() - dates.from.getTime()) / (1000 * 60 * 60 * 24));
+                        const nightlyRate = parseFloat(hotel.data.rate_per_night.lowest.replace(/[^0-9.]/g, ''));
+                        totalPrice += (nightlyRate * nights);
+                      } else {
+                        const nightlyRate = parseFloat(hotel.data.rate_per_night?.lowest?.replace(/[^0-9.]/g, '') || '0');
+                        totalPrice += nightlyRate;
+                      }
+                    });
+                    
+                    return (
+                      <>
+                        <div className="grid grid-cols-2 gap-2">
+                          <span className="text-gray-700 dark:text-gray-300">Flights:</span>
+                          <span className="text-right">{flightSelections.length}</span>
+                          
+                          <span className="text-gray-700 dark:text-gray-300">Hotels:</span>
+                          <span className="text-right">{hotelSelections.length}</span>
+                          
+                          <span className="text-gray-700 dark:text-gray-300">Activities:</span>
+                          <span className="text-right">{activitySelections.length}</span>
+                          
+                          <span className="text-gray-700 dark:text-gray-300">Custom Notes:</span>
+                          <span className="text-right">{customNotes.length}</span>
+                        </div>
+                        
+                        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+                          <div className="flex justify-between items-center font-semibold text-lg">
+                            <span>Total:</span>
+                            <span>${totalPrice.toFixed(2)}</span>
+                          </div>
+                          
+                          {activitySelections.length > 0 && (
+                            <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
+                              Note: Activity costs will be updated before booking confirmation if applicable.
+                            </p>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
+                  
+                  <button 
+                    onClick={toggleCalendarView}
+                    className="w-full mt-4 py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Calendar className="h-4 w-4" />
+                    Open Calendar View
+                  </button>
+                  
+                  <button 
+                    onClick={() => setBookModalOpen(true)}
+                    className="w-full mt-4 py-2 px-4 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Send className="h-4 w-4" />
+                    Book with Agent
+                  </button>
+                  
+                  <button 
+                    onClick={() => window.print()}
+                    className="w-full mt-4 py-2 px-4 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                  >
+                    Print Itinerary
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
+        )}
+      </main>
+
+      {/* Note Modal */}
+      {noteModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg max-w-md w-full">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-semibold">
+                {currentNote?.id ? 'Edit Note' : 'Add Note'}
+              </h2>
+              <button 
+                onClick={() => {
+                  setNoteModalOpen(false);
+                  setCurrentNote(null);
+                  setNoteError('');
+                }}
+                className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              {noteError && (
+                <div className="bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 p-4 rounded-lg text-sm">
+                  {noteError}
+                </div>
+              )}
+
               <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{itinerary.name}</h1>
-                {itinerary.description && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{itinerary.description}</p>
-                )}
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Date
+                </label>
+                <input 
+                  type="date" 
+                  value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setSelectedDate(new Date(e.target.value));
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Title
+                </label>
+                <input 
+                  type="text" 
+                  value={currentNote?.title || ''}
+                  onChange={(e) => setCurrentNote(prev => prev ? {...prev, title: e.target.value} : null)}
+                  placeholder="Note title"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Content
+                </label>
+                <textarea 
+                  value={currentNote?.content || ''}
+                  onChange={(e) => setCurrentNote(prev => prev ? {...prev, content: e.target.value} : null)}
+                  placeholder="Enter your note details here..."
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Color
+                </label>
+                <div className="flex gap-2 flex-wrap">
+                  {['bg-amber-100 border-amber-500', 'bg-blue-100 border-blue-500', 'bg-green-100 border-green-500', 
+                    'bg-purple-100 border-purple-500', 'bg-red-100 border-red-500', 'bg-gray-100 border-gray-500'].map((color) => (
+                    <button
+                      key={color}
+                      onClick={() => setCurrentNote(prev => prev ? {...prev, color} : null)}
+                      className={`w-8 h-8 rounded-full border-2 ${
+                        currentNote?.color === color ? 'ring-2 ring-offset-2 ring-blue-500' : ''
+                      } ${color.split(' ')[0]}`}
+                    />
+                  ))}
+                </div>
+              </div>
+              
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNoteModalOpen(false);
+                    setCurrentNote(null);
+                    setNoteError('');
+                  }}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveNote}
+                  disabled={!currentNote?.title || !selectedDate || isSavingNote}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isSavingNote ? (
+                    <>
+                      <div className="animate-spin h-4 w-4 border border-white border-t-transparent rounded-full"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    currentNote?.id ? 'Update Note' : 'Add Note'
+                  )}
+                </button>
               </div>
             </div>
           </div>
         </div>
-      </header>
+      )}
 
-      {/* Main content - Add pt-6 for spacing from header */}
-      <main className="max-w-7xl mx-auto px-4 py-8 pt-6 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Content Column */}
-          <section className="lg:col-span-2 space-y-6">
-            {/* Flights Section */}
-            {sortedFlights.length > 0 && (
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
-                  <Plane className="h-5 w-5 text-blue-500" />
-                  <h2 className="text-xl font-semibold">Flights</h2>
-                </div>
-                <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {sortedFlights.map((flight) => (
-                    <div key={flight.id} className="p-6 space-y-4">
-                      {flight.data.flights.map((segment, index) => (
-                        <div key={`${flight.id}-${index}`} className="space-y-4">
-                          <div className="flex items-center gap-3 mb-2">
-                            {segment.airline_logo && (
-                              <img 
-                                src={segment.airline_logo} 
-                                alt={segment.airline} 
-                                className="h-8 w-8 object-contain"
-                              />
-                            )}
-                            <div>
-                              <div className="font-medium">{segment.airline} {segment.flight_number}</div>
-                              <div className="text-sm text-gray-500 dark:text-gray-400">
-                                {formatDate(segment.departure_airport.time)}
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-stretch">
-                            <div className="flex flex-col items-center mr-4">
-                              <div className="rounded-full w-3 h-3 bg-blue-500"></div>
-                              <div className="w-0.5 flex-grow bg-gray-300 dark:bg-gray-600 my-1"></div>
-                              <div className="rounded-full w-3 h-3 bg-blue-500"></div>
-                            </div>
-                            
-                            <div className="flex-grow space-y-6">
-                              <div>
-                                <div className="font-medium">
-                                  {formatTime(segment.departure_airport.time)}
-                                </div>
-                                <div className="text-sm text-gray-600 dark:text-gray-400">
-                                  {segment.departure_airport.name} ({segment.departure_airport.id})
-                                </div>
-                              </div>
-                              
-                              <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                                <div className="flex-grow border-t border-dashed border-gray-300 dark:border-gray-600 mx-2"></div>
-                                <span>{formatDuration(segment.duration)}</span>
-                                <div className="flex-grow border-t border-dashed border-gray-300 dark:border-gray-600 mx-2"></div>
-                              </div>
-                              
-                              <div>
-                                <div className="font-medium">
-                                  {formatTime(segment.arrival_airport.time)}
-                                </div>
-                                <div className="text-sm text-gray-600 dark:text-gray-400">
-                                  {segment.arrival_airport.name} ({segment.arrival_airport.id})
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div className="ml-4 text-right">
-                              <div className="text-sm font-medium">
-                                {segment.travel_class}
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {flight.data.layovers && flight.data.layovers[index] && (
-                            <div className="ml-7 pl-4 border-l border-gray-300 dark:border-gray-600 text-sm text-gray-500 dark:text-gray-400">
-                              <div className="py-2">
-                                Layover at {flight.data.layovers[index].name}: {formatDuration(flight.data.layovers[index].duration)}
-                                {flight.data.layovers[index].overnight && ' (Overnight)'}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                      <div className="mt-4 text-right text-lg font-semibold text-blue-600 dark:text-blue-400">
-                        ${flight.data.price.toFixed(2)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Hotels Section */}
-            {hotelSelections.length > 0 && (
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
-                  <Hotel className="h-5 w-5 text-blue-500" />
-                  <h2 className="text-xl font-semibold">Accommodations</h2>
-                </div>
-                <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {hotelSelections.map((hotel) => {
-                    const dates = hotelDates[hotel.id];
-                    const nightlyRate = hotel.data.rate_per_night?.lowest?.replace(/[^0-9.]/g, '') || '0';
-                    
-                    let totalPrice = parseFloat(nightlyRate);
-                    let nights = 1;
-                    
-                    if (dates?.from && dates?.to) {
-                      nights = Math.ceil((dates.to.getTime() - dates.from.getTime()) / (1000 * 60 * 60 * 24));
-                      totalPrice = parseFloat(nightlyRate) * nights;
-                    }
-                    
-                    return (
-                      <div key={hotel.id} className="p-6">
-                        <div className="flex flex-col md:flex-row gap-6">
-                          {hotel.data.images && hotel.data.images.length > 0 && (
-                            <div className="md:w-1/3">
-                              <img 
-                                src={typeof hotel.data.images[0] === 'string' 
-                                  ? hotel.data.images[0] 
-                                  : (hotel.data.images[0] as any).url || ''} 
-                                alt={hotel.data.name} 
-                                className="w-full h-48 object-cover rounded-lg"
-                              />
-                            </div>
-                          )}
-                          
-                          <div className="md:w-2/3 space-y-4">
-                            <h3 className="text-xl font-medium">{hotel.data.name}</h3>
-                            
-                            {hotel.data.address && (
-                              <div className="flex items-start gap-2 text-gray-600 dark:text-gray-400">
-                                <MapPin className="h-5 w-5 flex-shrink-0 mt-0.5" />
-                                <span>{hotel.data.address}</span>
-                              </div>
-                            )}
-                            
-                            {dates?.from && dates?.to && (
-                              <div className="flex items-start gap-2 text-gray-600 dark:text-gray-400">
-                                <Calendar className="h-5 w-5 flex-shrink-0 mt-0.5" />
-                                <div>
-                                  <div>
-                                    {format(dates.from, 'MMM d, yyyy')} - {format(dates.to, 'MMM d, yyyy')}
-                                  </div>
-                                  <div className="text-sm">{nights} night{nights !== 1 ? 's' : ''}</div>
-                                </div>
-                              </div>
-                            )}
-                            
-                            <div className="text-right">
-                              <div className="text-sm text-gray-600 dark:text-gray-400">
-                                {hotel.data.rate_per_night?.lowest} per night
-                              </div>
-                              <div className="text-lg font-semibold text-blue-600 dark:text-blue-400">
-                                ${totalPrice.toFixed(2)} total
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-            
-            {/* Activities Section */}
-            {activitySelections.length > 0 && (
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
-                  <Bookmark className="h-5 w-5 text-blue-500" />
-                  <h2 className="text-xl font-semibold">Activities & Notes</h2>
-                </div>
-                <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {activitySelections.map((activity) => (
-                    <div key={activity.id} className="p-6">
-                      <p className="text-gray-900 dark:text-gray-100 mb-3 text-lg font-medium">
-                        {activity.data.description}
-                      </p>
-                      {activity.data.notes && (
-                        <div className="mt-3 text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                          <p className="italic whitespace-pre-wrap">{activity.data.notes}</p>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </section>
-
-          {/* Sidebar - Summary */}
-          <section className="space-y-6">
-            {/* Summary Section */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden sticky top-6">
-              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 className="text-xl font-semibold">Trip Summary</h2>
-              </div>
-              <div className="p-6 space-y-4">
-                {/* Calculate total price */}
-                {(() => {
-                  let totalPrice = 0;
-                  
-                  // Add flight prices
-                  flightSelections.forEach(flight => {
-                    totalPrice += flight.data.price;
-                  });
-                  
-                  // Add hotel prices
-                  hotelSelections.forEach(hotel => {
-                    const dates = hotelDates[hotel.id];
-                    if (dates?.from && dates?.to && hotel.data.rate_per_night?.lowest) {
-                      const nights = Math.ceil((dates.to.getTime() - dates.from.getTime()) / (1000 * 60 * 60 * 24));
-                      const nightlyRate = parseFloat(hotel.data.rate_per_night.lowest.replace(/[^0-9.]/g, ''));
-                      totalPrice += (nightlyRate * nights);
-                    } else {
-                      const nightlyRate = parseFloat(hotel.data.rate_per_night?.lowest?.replace(/[^0-9.]/g, '') || '0');
-                      totalPrice += nightlyRate;
-                    }
-                  });
-                  
-                  return (
-                    <>
-                      <div className="grid grid-cols-2 gap-2">
-                        <span className="text-gray-700 dark:text-gray-300">Flights:</span>
-                        <span className="text-right">{flightSelections.length}</span>
-                        
-                        <span className="text-gray-700 dark:text-gray-300">Hotels:</span>
-                        <span className="text-right">{hotelSelections.length}</span>
-                        
-                        <span className="text-gray-700 dark:text-gray-300">Activities:</span>
-                        <span className="text-right">{activitySelections.length}</span>
-                      </div>
-                      
-                      <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-                        <div className="flex justify-between items-center font-semibold text-lg">
-                          <span>Total:</span>
-                          <span>${totalPrice.toFixed(2)}</span>
-                        </div>
-                        
-                        {activitySelections.length > 0 && (
-                          <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
-                            Note: Activity costs will be updated before booking confirmation if applicable.
-                          </p>
-                        )}
-                      </div>
-                    </>
-                  );
-                })()}
-                
-                <button 
-                  onClick={() => setBookModalOpen(true)}
-                  className="w-full mt-4 py-2 px-4 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
-                >
-                  <Send className="h-4 w-4" />
-                  Book with Agent
-                </button>
-                
-                <button 
-                  onClick={() => window.print()}
-                  className="w-full mt-4 py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                >
-                  Print Itinerary
-                </button>
-              </div>
-            </div>
-          </section>
-        </div>
-      </main>
-
+      {/* Booking Modal */}
       {bookModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg max-w-md w-full">

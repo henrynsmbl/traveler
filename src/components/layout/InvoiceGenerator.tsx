@@ -3,7 +3,6 @@ import { useRouter } from 'next/navigation';
 import type { Selection } from '@/types/selections';
 import type { DateRange } from "react-day-picker";
 import { useAuth } from '../auth/AuthContext';
-import { saveSelections } from '@/lib/firebase/selections';
 import { createBooking, calculateItineraryTotal } from '@/lib/firebase/bookings';
 import { X, Save, Send } from 'lucide-react';
 
@@ -27,14 +26,12 @@ const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ selections, hotelDa
     }
 
     try {
-      // Save the current selections to Firebase
-      await saveSelections(user.uid, selections, hotelDates);
-      
-      // Navigate to the itinerary page
+      // Navigate directly to the itinerary page
+      // Hotel dates are already in state and will be passed to the page
       router.push('/itinerary');
     } catch (error) {
-      console.error('Error saving selections:', error);
-      alert('There was an error saving your itinerary. Please try again.');
+      console.error('Error accessing itinerary:', error);
+      alert('There was an error accessing your itinerary. Please try again.');
     }
   };
 

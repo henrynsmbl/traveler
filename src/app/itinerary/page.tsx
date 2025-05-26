@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthContext';
 import { format } from 'date-fns';
-import { ArrowLeft, Calendar, MapPin, Plane, Hotel, Bookmark, Save, X, Send } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Plane, Hotel, Bookmark, Save, X, Send, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Selection, FlightSelection, HotelSelection, ActivitySelection } from '@/types/selections';
 import type { DateRange } from 'react-day-picker';
 import { getSelections } from '@/lib/firebase/selections';
@@ -50,6 +50,68 @@ const formatTime = (dateTimeStr: string) => {
     console.error('Error formatting time:', dateTimeStr, error);
     return '';
   }
+};
+
+const HotelCard = ({ hotel, dates, nightlyRate, nights: propNights, totalPrice: propTotalPrice }) => {
+  // Format dates properly and calculate nights
+  const { formattedDateRange, calculatedNights } = (() => {
+    if (!dates?.from || !dates?.to) return { formattedDateRange: null, calculatedNights: 1 };
+    
+    const fromDate = dates.from instanceof Date ? dates.from : new Date(dates.from);
+    const toDate = dates.to instanceof Date ? dates.to : new Date(dates.to);
+    
+    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+      return { formattedDateRange: 'Invalid dates', calculatedNights: 1 };
+    }
+    
+    // Calculate nights based on the dates
+    const nightsCount = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    return { 
+      formattedDateRange: `${format(fromDate, 'MMM d, yyyy')} - ${format(toDate, 'MMM d, yyyy')}`,
+      calculatedNights: nightsCount > 0 ? nightsCount : 1
+    };
+  })();
+  
+  // Use the calculated nights or the prop, whichever is more reliable
+  const nights = calculatedNights || propNights;
+  
+  // Recalculate total price based on nights
+  const totalPrice = parseFloat(nightlyRate) * nights;
+  
+  return (
+    <div className="p-6">
+      <div className="space-y-4">
+        <h3 className="text-xl font-medium">{hotel.data.name}</h3>
+        
+        {hotel.data.address && (
+          <div className="flex items-start gap-2 text-gray-600 dark:text-gray-400">
+            <MapPin className="h-5 w-5 flex-shrink-0 mt-0.5" />
+            <span>{hotel.data.address}</span>
+          </div>
+        )}
+        
+        {formattedDateRange && (
+          <div className="flex items-start gap-2 text-gray-600 dark:text-gray-400">
+            <Calendar className="h-5 w-5 flex-shrink-0 mt-0.5" />
+            <div>
+              <div>{formattedDateRange}</div>
+              <div className="text-sm">{nights} night{nights !== 1 ? 's' : ''}</div>
+            </div>
+          </div>
+        )}
+        
+        <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-gray-700">
+          <div className="text-gray-600 dark:text-gray-400">
+            {hotel.data.rate_per_night?.lowest} per night
+          </div>
+          <div className="text-lg font-semibold text-blue-600 dark:text-blue-400">
+            ${totalPrice.toFixed(2)} total
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default function ItineraryPage() {
@@ -350,58 +412,24 @@ export default function ItineraryPage() {
                     let nights = 1;
                     
                     if (dates?.from && dates?.to) {
-                      nights = Math.ceil((dates.to.getTime() - dates.from.getTime()) / (1000 * 60 * 60 * 24));
-                      totalPrice = parseFloat(nightlyRate) * nights;
+                      const fromDate = dates.from instanceof Date ? dates.from : new Date(dates.from);
+                      const toDate = dates.to instanceof Date ? dates.to : new Date(dates.to);
+                      
+                      if (!isNaN(fromDate.getTime()) && !isNaN(toDate.getTime())) {
+                        nights = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
+                        totalPrice = parseFloat(nightlyRate) * nights;
+                      }
                     }
                     
                     return (
-                      <div key={hotel.id} className="p-6">
-                        <div className="flex flex-col md:flex-row gap-6">
-                          {hotel.data.images && hotel.data.images.length > 0 && (
-                            <div className="md:w-1/3">
-                              <img 
-                                src={typeof hotel.data.images[0] === 'string' 
-                                  ? hotel.data.images[0] 
-                                  : (hotel.data.images[0] as any).url || ''} 
-                                alt={hotel.data.name} 
-                                className="w-full h-48 object-cover rounded-lg"
-                              />
-                            </div>
-                          )}
-                          
-                          <div className="md:w-2/3 space-y-4">
-                            <h3 className="text-xl font-medium">{hotel.data.name}</h3>
-                            
-                            {hotel.data.address && (
-                              <div className="flex items-start gap-2 text-gray-600 dark:text-gray-400">
-                                <MapPin className="h-5 w-5 flex-shrink-0 mt-0.5" />
-                                <span>{hotel.data.address}</span>
-                              </div>
-                            )}
-                            
-                            {dates?.from && dates?.to && (
-                              <div className="flex items-start gap-2 text-gray-600 dark:text-gray-400">
-                                <Calendar className="h-5 w-5 flex-shrink-0 mt-0.5" />
-                                <div>
-                                  <div>
-                                    {format(dates.from, 'MMM d, yyyy')} - {format(dates.to, 'MMM d, yyyy')}
-                                  </div>
-                                  <div className="text-sm">{nights} night{nights !== 1 ? 's' : ''}</div>
-                                </div>
-                              </div>
-                            )}
-                            
-                            <div className="text-right">
-                              <div className="text-sm text-gray-600 dark:text-gray-400">
-                                {hotel.data.rate_per_night?.lowest} per night
-                              </div>
-                              <div className="text-lg font-semibold text-blue-600 dark:text-blue-400">
-                                ${totalPrice.toFixed(2)} total
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                      <HotelCard 
+                        key={hotel.id}
+                        hotel={hotel}
+                        dates={dates}
+                        nightlyRate={nightlyRate}
+                        nights={nights}
+                        totalPrice={totalPrice}
+                      />
                     );
                   })}
                 </div>
@@ -454,9 +482,17 @@ export default function ItineraryPage() {
                   hotelSelections.forEach(hotel => {
                     const dates = hotelDates[hotel.id];
                     if (dates?.from && dates?.to && hotel.data.rate_per_night?.lowest) {
-                      const nights = Math.ceil((dates.to.getTime() - dates.from.getTime()) / (1000 * 60 * 60 * 24));
-                      const nightlyRate = parseFloat(hotel.data.rate_per_night.lowest.replace(/[^0-9.]/g, ''));
-                      totalPrice += (nightlyRate * nights);
+                      const fromDate = dates.from instanceof Date ? dates.from : new Date(dates.from);
+                      const toDate = dates.to instanceof Date ? dates.to : new Date(dates.to);
+                      
+                      if (!isNaN(fromDate.getTime()) && !isNaN(toDate.getTime())) {
+                        const nights = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
+                        const nightlyRate = parseFloat(hotel.data.rate_per_night.lowest.replace(/[^0-9.]/g, ''));
+                        totalPrice += (nightlyRate * nights);
+                      } else {
+                        const nightlyRate = parseFloat(hotel.data.rate_per_night.lowest.replace(/[^0-9.]/g, ''));
+                        totalPrice += nightlyRate;
+                      }
                     } else {
                       const nightlyRate = parseFloat(hotel.data.rate_per_night?.lowest?.replace(/[^0-9.]/g, '') || '0');
                       totalPrice += nightlyRate;

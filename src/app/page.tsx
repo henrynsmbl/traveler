@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation'
 import MapComponent from '../components/map/MapComponent'
 import { FlightSearchContainer } from '../components/flight/FlightSearch'
 import { HotelSearchContainer } from '../components/hotel/HotelSearch'
+import { saveSelections, getSelections, updateHotelDates } from '@/lib/firebase/selections'
 
 const WelcomeScreen = () => {
   const { user } = useAuth();
@@ -285,11 +286,18 @@ export default function Home() {
   } = useChatSessions()
 
   const [hotelDates, setHotelDates] = useState<{[key: string]: DateRange | undefined}>({});
-  const handleUpdateHotelDates = (hotelId: string, dates: DateRange) => {
+  const handleUpdateHotelDates = async (hotelId: string, dates: DateRange) => {
     setHotelDates(prev => ({
       ...prev,
       [hotelId]: dates
     }));
+    
+    if (user?.uid && dates.from && dates.to) {
+      await updateHotelDates(user.uid, hotelId, {
+        from: dates.from,
+        to: dates.to
+      });
+    }
   };
 
   const messages = currentSession?.messages || []
@@ -307,6 +315,39 @@ export default function Home() {
     };
     checkUserSubscription();
   }, [user]);
+
+  // Load selections from Firebase when user logs in
+  useEffect(() => {
+    const loadSelections = async () => {
+      if (user?.uid) {
+        try {
+          const { selections: savedSelections, hotelDates: savedHotelDates } = await getSelections(user.uid);
+          setSelections(savedSelections);
+          setHotelDates(savedHotelDates);
+        } catch (error) {
+          console.error('Error loading selections:', error);
+        }
+      }
+    };
+    loadSelections();
+  }, [user]);
+
+  // Auto-save selections to Firebase whenever they change
+  useEffect(() => {
+    const saveSelectionsToFirebase = async () => {
+      if (user?.uid) {
+        try {
+          await saveSelections(user.uid, selections, hotelDates);
+        } catch (error) {
+          console.error('Error saving selections:', error);
+        }
+      }
+    };
+    
+    // Debounce the save operation
+    const timeoutId = setTimeout(saveSelectionsToFirebase, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [selections, hotelDates, user]);
 
   // clear on logout
   useEffect(() => {

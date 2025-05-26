@@ -29,14 +29,15 @@ const pricingTiers: PricingTier[] = [
     yearlyPrice: 165,
     features: [
       "AI suggestions and web crawl",
-      "Flight and hotel search",
-      "Itinerary builder",
-      "Map integration"
+      "Book 3 itineraries per month",
+      "Itinerary builder and planner",
+      "Map integration",
+      "Travel agent support"
     ],
     priceId: {
       monthly: "price_1R59roIzmoU5zafNovVMqvVK",
       yearly: "price_1R59roIzmoU5zafNJNxPLXN9",
-      // Test mode prices commented out
+      // STRIPE TEST MODE, this is not live products
       //monthly: "price_1R6cCnIzmoU5zafNi6o8v5lc",
       //yearly: "price_1R6cEUIzmoU5zafNHT5F2x9V"
     }

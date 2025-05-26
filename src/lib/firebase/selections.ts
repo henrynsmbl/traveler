@@ -16,6 +16,32 @@ export const saveSelections = async (
   }, { merge: true });
 };
 
+export const updateHotelDates = async (userId: string, hotelId: string, dates: { from: Date; to: Date }) => {
+  try {
+    const userDoc = doc(db, 'users', userId);
+    const docSnap = await getDoc(userDoc);
+    
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      const updatedHotelDates = {
+        ...data.hotelDates,
+        [hotelId]: dates
+      };
+      
+      await setDoc(userDoc, {
+        hotelDates: updatedHotelDates,
+        updatedAt: new Date()
+      }, { merge: true });
+      
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error updating hotel dates:', error);
+    return false;
+  }
+};
+
 export const getSelections = async (userId: string) => {
   const userDoc = doc(db, 'users', userId);
   const docSnap = await getDoc(userDoc);
