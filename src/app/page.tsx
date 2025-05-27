@@ -165,6 +165,103 @@ async function searchAPI(prompt: string, history: Message[]): Promise<SearchAPIR
   }
 }
 
+// New streaming search function
+async function streamingSearchAPI(
+  prompt: string, 
+  history: Message[], 
+  onTextChunk: (text: string) => void,
+  onFlights: (flights: any) => void,
+  onHotels: (hotels: any) => void,
+  onCitations: (citations: any[]) => void,
+  onComplete: () => void,
+  onError: (error: string) => void
+): Promise<void> {
+  try {
+    console.log("streamingSearchAPI - Starting streaming request with prompt:", prompt);
+    
+    const filteredHistory = history.filter(msg => 
+      msg.contents.some(content => 
+        !content.type || content.type === 'text'
+      )
+    ).map(msg => ({
+      ...msg,
+      contents: msg.contents.filter(content => 
+        !content.type || content.type === 'text'
+      )
+    }));
+
+    // Construct the URL with query parameters
+    const url = new URL('/api/search', window.location.origin);
+    url.searchParams.set('prompt', prompt);
+    url.searchParams.set('history', JSON.stringify(filteredHistory));
+
+    const eventSource = new EventSource(url.toString());
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("Streaming event received:", data);
+        
+        switch (data.type) {
+          case 'start':
+            console.log("Stream started:", data.message);
+            break;
+            
+          case 'text_chunk':
+            onTextChunk(data.content);
+            break;
+            
+          case 'flights':
+            onFlights(data.content);
+            break;
+            
+          case 'hotels':
+            onHotels(data.content);
+            break;
+            
+          case 'citations':
+            onCitations(data.content);
+            break;
+            
+          case 'complete':
+            console.log("Stream completed");
+            eventSource.close();
+            onComplete();
+            break;
+            
+          case 'error':
+            console.error("Stream error:", data.message);
+            eventSource.close();
+            onError(data.message);
+            break;
+        }
+      } catch (parseError) {
+        console.error("Error parsing streaming event:", parseError);
+        eventSource.close();
+        onError("Error parsing response");
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error("EventSource error:", error);
+      eventSource.close();
+      onError("Connection error occurred");
+    };
+
+    // Auto-close after 30 seconds to prevent hanging connections
+    setTimeout(() => {
+      if (eventSource.readyState !== EventSource.CLOSED) {
+        eventSource.close();
+        onError("Request timed out");
+      }
+    }, 30000);
+
+  } catch (error) {
+    console.error('Streaming API call failed:', error);
+    onError(error instanceof Error ? error.message : 'Unknown error occurred');
+  }
+}
+
 // Add this helper function at the top level
 const isEmptyChat = (session: ChatSession | null) => {
   return session?.title === 'New Chat' && (!session.messages || session.messages.length === 0);
@@ -271,6 +368,9 @@ const ModeSelector: React.FC<{
 export default function Home() {
   const [currentInput, setCurrentInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [streamingText, setStreamingText] = useState('')
+  const [useStreaming, setUseStreaming] = useState(true) // User preference for streaming
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [selections, setSelections] = useState<Selection[]>([])
   const [isSelectionsSidebarOpen, setIsSelectionsSidebarOpen] = useState(false)
@@ -409,6 +509,7 @@ export default function Home() {
     }
     
     const updatedMessages = [...messages, userMessage]
+    const inputText = currentInput.trim()
     
     setCurrentInput('')
     setIsLoading(true)
@@ -416,7 +517,7 @@ export default function Home() {
     if (inputRef.current) {
       inputRef.current.style.height = '24px'
     }
-  
+
     try {
       // Update messages immediately to show user input
       await updateCurrentSession({ 
@@ -424,10 +525,149 @@ export default function Home() {
         title: generateChatTitle(updatedMessages)
       })
 
-      const apiResponse = await searchAPI(currentInput.trim(), messages)
+      // Try streaming if enabled and supported
+      if (useStreaming && typeof EventSource !== 'undefined') {
+        console.log('Attempting to use streaming API');
+        setIsStreaming(true)
+        setStreamingText('')
+
+        // Set up streaming handlers
+        let streamingTextContent = '';
+        let collectedFlights: any = null;
+        let collectedHotels: any = null;
+        let collectedCitations: any[] = [];
+        let streamingFailed = false;
+
+        const onTextChunk = async (text: string) => {
+          streamingTextContent = text;
+          setStreamingText(text);
+        };
+
+        const onFlights = async (flights: any) => {
+          collectedFlights = flights;
+        };
+
+        const onHotels = async (hotels: any) => {
+          collectedHotels = hotels;
+        };
+
+        const onCitations = async (citations: any[]) => {
+          collectedCitations = citations;
+        };
+
+        const onComplete = async () => {
+          setIsStreaming(false);
+          setStreamingText('');
+          
+          const finalMessages: Message[] = [...updatedMessages];
+          
+          // Add the completed text message
+          if (streamingTextContent) {
+            finalMessages.push({
+              contents: [{
+                type: 'text',
+                content: streamingTextContent
+              }],
+              isUser: false,
+              timestamp: new Date()
+            });
+          }
+
+          // Add flight data if available
+          if (collectedFlights && (collectedFlights.best_flights?.length > 0 || collectedFlights.other_flights?.length > 0)) {
+            const flightMessage: Message = {
+              contents: [{
+                type: 'flight',
+                content: {
+                  best_flights: collectedFlights.best_flights || [],
+                  other_flights: collectedFlights.other_flights || [],
+                  search_metadata: collectedFlights.search_metadata
+                }
+              }],
+              isUser: false,
+              timestamp: new Date()
+            };
+            finalMessages.push(flightMessage);
+          }
+
+          // Add hotel data if available
+          if (collectedHotels?.properties?.length > 0) {
+            const hotelMessage: Message = {
+              contents: [{
+                type: 'hotel',
+                content: {
+                  properties: collectedHotels.properties,
+                  search_metadata: collectedHotels.search_metadata
+                }
+              }],
+              isUser: false,
+              timestamp: new Date()
+            };
+            finalMessages.push(hotelMessage);
+          }
+
+          // Add citations if present
+          if (collectedCitations?.length > 0) {
+            const citationMessage: Message = {
+              contents: [{
+                type: 'text',
+                content: "",
+                citations: collectedCitations
+              }],
+              isUser: false,
+              timestamp: new Date()
+            };
+            finalMessages.push(citationMessage);
+          }
+
+          // Final update with all collected data
+          await updateCurrentSession({ 
+            messages: finalMessages,
+            title: generateChatTitle(finalMessages)
+          });
+          
+          setIsLoading(false);
+        };
+
+        const onError = async (error: string) => {
+          console.error('Streaming error, falling back to regular API:', error);
+          streamingFailed = true;
+          setIsStreaming(false);
+          setStreamingText('');
+          
+          // Don't show error immediately, fall back to regular API
+        };
+
+        try {
+          // Attempt streaming
+          await streamingSearchAPI(
+            inputText,
+            messages,
+            onTextChunk,
+            onFlights,
+            onHotels,
+            onCitations,
+            onComplete,
+            onError
+          );
+
+          // If streaming completed successfully, we're done
+          if (!streamingFailed) {
+            return;
+          }
+        } catch (streamError) {
+          console.log('Streaming failed, falling back to regular API');
+          setIsStreaming(false);
+          setStreamingText('');
+        }
+      }
+
+      // Fallback to regular API (or if streaming is disabled)
+      console.log('Using regular API');
+      const apiResponse = await searchAPI(inputText, messages)
       
       const newMessages: Message[] = []
-  
+
       // Add text response
       if (apiResponse.response) {
         const textMessage: Message = {
@@ -440,7 +680,7 @@ export default function Home() {
         }
         newMessages.push(textMessage)
       }
-  
+
       // Add flight data if available
       const flights = apiResponse.flights
       if (flights && (flights.best_flights?.length > 0 || flights.other_flights?.length > 0)) {
@@ -458,7 +698,7 @@ export default function Home() {
         }
         newMessages.push(flightMessage)
       }
-  
+
       // Add hotel data if available
       const hotels = apiResponse.hotels
       const hotelProperties = hotels?.properties || []
@@ -476,7 +716,7 @@ export default function Home() {
         }
         newMessages.push(hotelMessage)
       }
-  
+
       // Add citations if present
       if (apiResponse.citations?.length > 0) {
         const citationMessage: Message = {
@@ -490,16 +730,19 @@ export default function Home() {
         }
         newMessages.push(citationMessage)
       }
-  
+
       // Update session with all messages
       const finalMessages = [...updatedMessages, ...newMessages]
       await updateCurrentSession({ 
         messages: finalMessages,
         title: generateChatTitle(finalMessages)
       })
-  
+
     } catch (error) {
-      console.error('Error in handleSubmit:', error)
+      console.error('Error in handleSubmit:', error);
+      setIsStreaming(false);
+      setStreamingText('');
+      
       const errorMessage: Message = {
         contents: [{
           type: 'text',
@@ -507,12 +750,12 @@ export default function Home() {
         }],
         isUser: false,
         timestamp: new Date()
-      }
+      };
       await updateCurrentSession({ 
         messages: [...updatedMessages, errorMessage]
-      })
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
@@ -782,7 +1025,12 @@ export default function Home() {
                   ))}
                   <SelectionPopover onAddSelection={handleAddTextSelection} />
                 </div>
-                {isLoading && <LoadingMessage />}
+                {(isLoading || isStreaming) && (
+                  <LoadingMessage 
+                    isStreaming={isStreaming} 
+                    streamingText={streamingText}
+                  />
+                )}
                 <div ref={messagesEndRef} />
               </div>
             )}
@@ -831,6 +1079,20 @@ export default function Home() {
                                   transition-colors duration-200 text-sm font-medium"
                       >
                         New Chat
+                      </button>
+
+                      {/* Streaming toggle */}
+                      <button
+                        onClick={() => setUseStreaming(!useStreaming)}
+                        className="absolute -top-12 right-0 
+                                  bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700
+                                  text-gray-600 dark:text-gray-300 px-3 py-2 rounded-full
+                                  border border-gray-300 dark:border-gray-600 shadow-sm
+                                  transition-colors duration-200 text-xs font-medium flex items-center gap-2"
+                        title={useStreaming ? 'Disable real-time streaming' : 'Enable real-time streaming'}
+                      >
+                        <div className={`w-2 h-2 rounded-full ${useStreaming ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                        {useStreaming ? 'Live' : 'Standard'}
                       </button>
                       
                       <form onSubmit={handleSubmit}>
