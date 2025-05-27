@@ -34,6 +34,17 @@ const formatDuration = (minutes: number): string => {
   return `${hours}h ${remainingMinutes}m`;
 };
 
+const safeDate = (dateValue: any): Date | null => {
+  try {
+    if (!dateValue) return null;
+    const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+    return isNaN(date.getTime()) ? null : date;
+  } catch (error) {
+    console.error('Error creating date:', error);
+    return null;
+  }
+};
+
 const formatDate = (dateTimeStr: string) => {
   try {
     if (!dateTimeStr) return '';
@@ -59,9 +70,14 @@ const calculateTotal = (selections: Selection[], hotelDates: HotelDates): number
     } else if (selection.type === 'hotel') {
       const dates = hotelDates[selection.id];
       if (dates?.from && dates?.to && selection.data.rate_per_night?.lowest) {
-        const nights = Math.ceil((dates.to.getTime() - dates.from.getTime()) / (1000 * 60 * 60 * 24));
-        const nightlyRate = parseFloat(selection.data.rate_per_night.lowest.replace(/[^0-9.]/g, ''));
-        return total + (nightlyRate * nights);
+        const fromDate = safeDate(dates.from);
+        const toDate = safeDate(dates.to);
+        
+        if (fromDate && toDate) {
+          const nights = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
+          const nightlyRate = parseFloat(selection.data.rate_per_night.lowest.replace(/[^0-9.]/g, ''));
+          return total + (nightlyRate * nights);
+        }
       }
       const nightlyRate = parseFloat(selection.data.rate_per_night?.lowest?.replace(/[^0-9.]/g, '') || '0');
       return total + nightlyRate;
@@ -182,9 +198,14 @@ const SelectionsSidebar: React.FC<SelectionsSidebarProps> = ({
     
     const calculateHotelPrice = () => {
       if (dates?.from && dates?.to && hotelData.rate_per_night?.lowest) {
-        const nights = Math.ceil((dates.to.getTime() - dates.from.getTime()) / (1000 * 60 * 60 * 24));
-        const nightlyRate = parseFloat(hotelData.rate_per_night.lowest.replace(/[^0-9.]/g, ''));
-        return (nightlyRate * nights).toFixed(2);
+        const fromDate = safeDate(dates.from);
+        const toDate = safeDate(dates.to);
+        
+        if (fromDate && toDate) {
+          const nights = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
+          const nightlyRate = parseFloat(hotelData.rate_per_night.lowest.replace(/[^0-9.]/g, ''));
+          return (nightlyRate * nights).toFixed(2);
+        }
       }
       return hotelData.rate_per_night?.lowest?.replace(/[^0-9.]/g, '') || '0.00';
     };
@@ -223,7 +244,16 @@ const SelectionsSidebar: React.FC<SelectionsSidebarProps> = ({
                 <Calendar className="h-4 w-4" />
                 {dates?.from && dates?.to ? (
                   <span>
-                    {format(dates.from, 'MMM d')} - {format(dates.to, 'MMM d, yyyy')}
+                    {(() => {
+                      const fromDate = safeDate(dates.from);
+                      const toDate = safeDate(dates.to);
+                      
+                      if (fromDate && toDate) {
+                        return `${format(fromDate, 'MMM d')} - ${format(toDate, 'MMM d, yyyy')}`;
+                      }
+                      
+                      return 'Invalid dates';
+                    })()}
                   </span>
                 ) : (
                   <span>Select dates</span>
@@ -246,6 +276,7 @@ const SelectionsSidebar: React.FC<SelectionsSidebarProps> = ({
                       });
                     }
                   }}
+                  disabled={{ before: new Date() }}
                   className="dark:text-white"
                 />
               </Popover.Content>

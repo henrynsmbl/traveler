@@ -54,24 +54,122 @@ const formatTime = (dateTimeStr: string) => {
 };
 
 export default function SavedItineraryPage({ params }: { params: { id: string } | Promise<{ id: string }> }) {
-  const { user } = useAuth();
   const router = useRouter();
+  const { user } = useAuth();
   const [itinerary, setItinerary] = useState<SavedItinerary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  
+  // Calendar states
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState(new Date());
+  const [currentCalendarMonth, setCurrentCalendarMonth] = useState(new Date());
+  
+  // Note editing states
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteContent, setEditingNoteContent] = useState('');
+  const [newNoteContent, setNewNoteContent] = useState('');
+  const [isAddingNote, setIsAddingNote] = useState(false);
+  const [customNotes, setCustomNotes] = useState<CustomNote[]>([]);
+  const [showNoteInput, setShowNoteInput] = useState<string | null>(null); // Date string for which date to show input
+  
+  // Booking states
   const [bookModalOpen, setBookModalOpen] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
   const [bookingError, setBookingError] = useState('');
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [currentNote, setCurrentNote] = useState<{ id: string; date: Date; title: string; content: string; color: string } | null>(null);
-  const [noteModalOpen, setNoteModalOpen] = useState(false);
-  const [customNotes, setCustomNotes] = useState<CustomNote[]>([]);
-  const [showCalendarView, setShowCalendarView] = useState(false);
-  const [initialCalendarDate, setInitialCalendarDate] = useState<Date | null>(null);
-  const [isPastItinerary, setIsPastItinerary] = useState(false);
-  const [isSavingNote, setIsSavingNote] = useState(false);
-  const [noteError, setNoteError] = useState('');
+  const [bookingName, setBookingName] = useState('My Trip');
   
+  // Hotel image carousel states - maps hotel ID to current image index
+  const [hotelImageIndices, setHotelImageIndices] = useState<{[hotelId: string]: number}>({});
+  
+  // Helper functions for hotel image carousel
+  const getCurrentImageIndex = (hotelId: string) => hotelImageIndices[hotelId] || 0;
+  
+  const setCurrentImageIndex = (hotelId: string, index: number) => {
+    setHotelImageIndices(prev => ({
+      ...prev,
+      [hotelId]: index
+    }));
+  };
+
+  // Helper function to get valid image URL from an image entry
+  const getImageUrl = (imageData: any) => {
+    if (typeof imageData === 'string') {
+      return imageData || null;
+    } else if (imageData && imageData.url) {
+      return imageData.url || null;
+    }
+    return null;
+  };
+
+  // Component for hotel image carousel
+  const HotelImageCarousel = ({ hotel }: { hotel: any }) => {
+    const currentImageIndex = getCurrentImageIndex(hotel.id);
+    
+    // Get all valid image URLs
+    const validImageUrls = hotel.data.images
+      .map(getImageUrl)
+      .filter((url: any) => url !== null);
+    
+    // If no valid images, show placeholder
+    if (validImageUrls.length === 0) {
+      return (
+        <div className="w-full h-48 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+          <Hotel className="h-12 w-12 text-gray-400 dark:text-gray-500" />
+        </div>
+      );
+    }
+    
+    // Show current image with navigation controls
+    return (
+      <div className="relative">
+        <img 
+          src={validImageUrls[currentImageIndex]}
+          alt={`${hotel.data.name} - Image ${currentImageIndex + 1}`}
+          className="w-full h-48 object-cover rounded-lg"
+        />
+        
+        {/* Only show navigation if there are multiple images */}
+        {validImageUrls.length > 1 && (
+          <>
+            {/* Left navigation button */}
+            <button 
+              onClick={(e) => {
+                e.preventDefault();
+                setCurrentImageIndex(hotel.id, 
+                  currentImageIndex === 0 ? validImageUrls.length - 1 : currentImageIndex - 1
+                );
+              }}
+              className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-1 rounded-full hover:bg-black/70"
+              aria-label="Previous image"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            
+            {/* Right navigation button */}
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                setCurrentImageIndex(hotel.id,
+                  currentImageIndex === validImageUrls.length - 1 ? 0 : currentImageIndex + 1
+                );
+              }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-1 rounded-full hover:bg-black/70"
+              aria-label="Next image"
+            >
+              <ChevronRight size={20} />
+            </button>
+            
+            {/* Image counter indicator */}
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 text-white px-2 py-1 rounded-full text-xs">
+              {currentImageIndex + 1} / {validImageUrls.length}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
   // Unwrap params if it's a Promise
   const itineraryId = params instanceof Promise ? React.use(params).id : params.id;
 
@@ -151,16 +249,12 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
     if (dates.length > 0) {
       dates.sort((a, b) => a.getTime() - b.getTime());
       const earliestDate = dates[0];
-      setInitialCalendarDate(earliestDate);
-      
-      // Check if the earliest date is in the past
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      setIsPastItinerary(earliestDate < today);
+      setSelectedCalendarDate(earliestDate);
+      setCurrentCalendarMonth(earliestDate);
     } else {
       // If no dates found, use current date
-      setInitialCalendarDate(new Date());
-      setIsPastItinerary(false);
+      setSelectedCalendarDate(new Date());
+      setCurrentCalendarMonth(new Date());
     }
   };
 
@@ -169,10 +263,6 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
     if (!user || !itinerary) return;
     
     try {
-      setIsSavingNote(true);
-      setNoteError('');
-      
-      // Update the itinerary in Firebase with the new notes
       await updateItinerary(itineraryId, {
         customNotes: updatedNotes
       });
@@ -182,28 +272,26 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
       
     } catch (error) {
       console.error('Error saving notes:', error);
-      setNoteError('Failed to save note. Please try again.');
-    } finally {
-      setIsSavingNote(false);
+      setError('Failed to save note. Please try again.');
     }
   };
 
   const handleSaveNote = async () => {
-    if (!currentNote || !selectedDate) return;
+    if (!editingNoteId || !selectedCalendarDate) return;
     
     const newNote: CustomNote = {
-      id: currentNote.id || `note-${Date.now()}`,
-      date: selectedDate,
-      title: currentNote.title,
-      content: currentNote.content,
-      color: currentNote.color
+      id: editingNoteId,
+      date: selectedCalendarDate,
+      title: '',
+      content: editingNoteContent,
+      color: 'bg-amber-100 border-amber-500'
     };
     
     let updatedNotes: CustomNote[];
     
-    if (currentNote.id) {
+    if (editingNoteId) {
       // Edit existing note
-      updatedNotes = customNotes.map(note => note.id === currentNote.id ? newNote : note);
+      updatedNotes = customNotes.map(note => note.id === editingNoteId ? newNote : note);
     } else {
       // Add new note
       updatedNotes = [...customNotes, newNote];
@@ -213,9 +301,9 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
     await saveNotesToFirebase(updatedNotes);
     
     // Close modal only after successful save
-    if (!noteError) {
-      setNoteModalOpen(false);
-      setCurrentNote(null);
+    if (!error) {
+      setEditingNoteId(null);
+      setEditingNoteContent('');
     }
   };
 
@@ -228,13 +316,15 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
   };
 
   const handleAddNote = (date: Date) => {
-    setSelectedDate(date);
-    setCurrentNote({ id: '', date, title: '', content: '', color: 'bg-amber-100 border-amber-500' });
-    setNoteModalOpen(true);
+    setSelectedCalendarDate(date);
+    setEditingNoteId(null);
+    setEditingNoteContent('');
+    setIsAddingNote(true);
+    setShowNoteInput(date.toISOString().split('T')[0]);
   };
 
   const toggleCalendarView = () => {
-    setShowCalendarView(!showCalendarView);
+    setShowCalendar(!showCalendar);
   };
 
   if (loading) {
@@ -321,7 +411,7 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header - only show when not in calendar view */}
-      {!showCalendarView && (
+      {!showCalendar && (
         <header className="bg-transparent shadow-sm z-20 pt-20 relative">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
             <div className="flex items-center justify-between">
@@ -349,8 +439,8 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
         </header>
       )}
 
-      <main className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 ${showCalendarView ? 'pt-20' : ''}`}>
-        {showCalendarView ? (
+      <main className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 ${showCalendar ? 'pt-20' : ''}`}>
+        {showCalendar ? (
           <div className="space-y-6">
             <button 
               onClick={toggleCalendarView}
@@ -359,15 +449,6 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
               <ArrowLeft size={16} />
               Back to Itinerary
             </button>
-            
-            {isPastItinerary && (
-              <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 mb-4">
-                <p className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
-                  Note: This itinerary shows dates in the past.
-                </p>
-              </div>
-            )}
             
             {/* Calendar View using the new component with initialDate prop */}
             <CalendarContainer
@@ -379,7 +460,7 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
               customNotes={customNotes}
               onAddNote={handleAddNote}
               onDeleteNote={handleDeleteNote}
-              initialDate={initialCalendarDate}
+              initialDate={selectedCalendarDate}
             />
           </div>
         ) : (
@@ -498,83 +579,7 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
                           <div className="flex flex-col md:flex-row gap-6">
                             {hotel.data.images && hotel.data.images.length > 0 && (
                               <div className="md:w-1/3 relative">
-                                {(() => {
-                                  // State for current image index (using useState hook)
-                                  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-                                  
-                                  // Function to get valid image URL from an image entry
-                                  const getImageUrl = (imageData: any) => {
-                                    if (typeof imageData === 'string') {
-                                      return imageData || null;
-                                    } else if (imageData && imageData.url) {
-                                      return imageData.url || null;
-                                    }
-                                    return null;
-                                  };
-                                  
-                                  // Get all valid image URLs
-                                  const validImageUrls = hotel.data.images
-                                    .map(getImageUrl)
-                                    .filter(url => url !== null);
-                                  
-                                  // If no valid images, show placeholder
-                                  if (validImageUrls.length === 0) {
-                                    return (
-                                      <div className="w-full h-48 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                                        <Hotel className="h-12 w-12 text-gray-400 dark:text-gray-500" />
-                                      </div>
-                                    );
-                                  }
-                                  
-                                  // Show current image with navigation controls
-                                  return (
-                                    <>
-                                      <img 
-                                        src={validImageUrls[currentImageIndex]}
-                                        alt={`${hotel.data.name} - Image ${currentImageIndex + 1}`}
-                                        className="w-full h-48 object-cover rounded-lg"
-                                      />
-                                      
-                                      {/* Only show navigation if there are multiple images */}
-                                      {validImageUrls.length > 1 && (
-                                        <>
-                                          {/* Left navigation button */}
-                                          <button 
-                                            onClick={(e) => {
-                                              e.preventDefault();
-                                              setCurrentImageIndex((prev) => 
-                                                prev === 0 ? validImageUrls.length - 1 : prev - 1
-                                              );
-                                            }}
-                                            className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-1 rounded-full hover:bg-black/70"
-                                            aria-label="Previous image"
-                                          >
-                                            <ChevronLeft size={20} />
-                                          </button>
-                                          
-                                          {/* Right navigation button */}
-                                          <button
-                                            onClick={(e) => {
-                                              e.preventDefault();
-                                              setCurrentImageIndex((prev) => 
-                                                prev === validImageUrls.length - 1 ? 0 : prev + 1
-                                              );
-                                            }}
-                                            className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-1 rounded-full hover:bg-black/70"
-                                            aria-label="Next image"
-                                          >
-                                            <ChevronRight size={20} />
-                                          </button>
-                                          
-                                          {/* Image counter indicator */}
-                                          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 text-white px-2 py-1 rounded-full text-xs">
-                                            {currentImageIndex + 1} / {validImageUrls.length}
-                                          </div>
-                                        </>
-                                      )}
-                                    </>
-                                  );
-                                })()}
+                                <HotelImageCarousel hotel={hotel} />
                               </div>
                             )}
                             
@@ -627,7 +632,14 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
                   <div className="divide-y divide-gray-200 dark:divide-gray-700">
                     {activitySelections.map((activity) => (
                       <div key={activity.id} className="p-6">
-                        <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line">{activity.data.description}</p>
+                        <p className="text-gray-900 dark:text-gray-100 mb-3 text-lg font-medium">
+                          {activity.data.description}
+                        </p>
+                        {activity.data.notes && (
+                          <div className="mt-3 text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                            <p className="italic whitespace-pre-wrap">{activity.data.notes}</p>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -727,18 +739,17 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
       </main>
 
       {/* Note Modal */}
-      {noteModalOpen && (
+      {editingNoteId && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg max-w-md w-full">
             <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-xl font-semibold">
-                {currentNote?.id ? 'Edit Note' : 'Add Note'}
+                {editingNoteId ? 'Edit Note' : 'Add Note'}
               </h2>
               <button 
                 onClick={() => {
-                  setNoteModalOpen(false);
-                  setCurrentNote(null);
-                  setNoteError('');
+                  setEditingNoteId(null);
+                  setEditingNoteContent('');
                 }}
                 className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
               >
@@ -747,9 +758,9 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
             </div>
             
             <div className="p-6 space-y-4">
-              {noteError && (
+              {error && (
                 <div className="bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 p-4 rounded-lg text-sm">
-                  {noteError}
+                  {error}
                 </div>
               )}
 
@@ -759,25 +770,12 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
                 </label>
                 <input 
                   type="date" 
-                  value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''}
+                  value={selectedCalendarDate ? format(selectedCalendarDate, 'yyyy-MM-dd') : ''}
                   onChange={(e) => {
                     if (e.target.value) {
-                      setSelectedDate(new Date(e.target.value));
+                      setSelectedCalendarDate(new Date(e.target.value));
                     }
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Title
-                </label>
-                <input 
-                  type="text" 
-                  value={currentNote?.title || ''}
-                  onChange={(e) => setCurrentNote(prev => prev ? {...prev, title: e.target.value} : null)}
-                  placeholder="Note title"
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
                 />
               </div>
@@ -787,39 +785,20 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
                   Content
                 </label>
                 <textarea 
-                  value={currentNote?.content || ''}
-                  onChange={(e) => setCurrentNote(prev => prev ? {...prev, content: e.target.value} : null)}
+                  value={editingNoteContent}
+                  onChange={(e) => setEditingNoteContent(e.target.value)}
                   placeholder="Enter your note details here..."
                   rows={4}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
                 />
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Color
-                </label>
-                <div className="flex gap-2 flex-wrap">
-                  {['bg-amber-100 border-amber-500', 'bg-blue-100 border-blue-500', 'bg-green-100 border-green-500', 
-                    'bg-purple-100 border-purple-500', 'bg-red-100 border-red-500', 'bg-gray-100 border-gray-500'].map((color) => (
-                    <button
-                      key={color}
-                      onClick={() => setCurrentNote(prev => prev ? {...prev, color} : null)}
-                      className={`w-8 h-8 rounded-full border-2 ${
-                        currentNote?.color === color ? 'ring-2 ring-offset-2 ring-blue-500' : ''
-                      } ${color.split(' ')[0]}`}
-                    />
-                  ))}
-                </div>
-              </div>
-              
               <div className="flex justify-end gap-3 pt-4">
                 <button
                   type="button"
                   onClick={() => {
-                    setNoteModalOpen(false);
-                    setCurrentNote(null);
-                    setNoteError('');
+                    setEditingNoteId(null);
+                    setEditingNoteContent('');
                   }}
                   className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
@@ -828,17 +807,10 @@ export default function SavedItineraryPage({ params }: { params: { id: string } 
                 <button
                   type="button"
                   onClick={handleSaveNote}
-                  disabled={!currentNote?.title || !selectedDate || isSavingNote}
+                  disabled={!editingNoteContent || !selectedCalendarDate}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  {isSavingNote ? (
-                    <>
-                      <div className="animate-spin h-4 w-4 border border-white border-t-transparent rounded-full"></div>
-                      Saving...
-                    </>
-                  ) : (
-                    currentNote?.id ? 'Update Note' : 'Add Note'
-                  )}
+                  {editingNoteId ? 'Update Note' : 'Add Note'}
                 </button>
               </div>
             </div>

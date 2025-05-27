@@ -52,6 +52,17 @@ const formatTime = (dateTimeStr: string) => {
   }
 };
 
+const safeDate = (dateValue: any): Date | null => {
+  try {
+    if (!dateValue) return null;
+    const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+    return isNaN(date.getTime()) ? null : date;
+  } catch (error) {
+    console.error('Error creating date:', error);
+    return null;
+  }
+};
+
 const HotelCard = ({ hotel, dates, nightlyRate, nights: propNights, totalPrice: propTotalPrice }) => {
   // Format dates properly and calculate nights
   const { formattedDateRange, calculatedNights } = (() => {
@@ -412,10 +423,10 @@ export default function ItineraryPage() {
                     let nights = 1;
                     
                     if (dates?.from && dates?.to) {
-                      const fromDate = dates.from instanceof Date ? dates.from : new Date(dates.from);
-                      const toDate = dates.to instanceof Date ? dates.to : new Date(dates.to);
+                      const fromDate = safeDate(dates.from);
+                      const toDate = safeDate(dates.to);
                       
-                      if (!isNaN(fromDate.getTime()) && !isNaN(toDate.getTime())) {
+                      if (fromDate && toDate) {
                         nights = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
                         totalPrice = parseFloat(nightlyRate) * nights;
                       }
@@ -482,10 +493,10 @@ export default function ItineraryPage() {
                   hotelSelections.forEach(hotel => {
                     const dates = hotelDates[hotel.id];
                     if (dates?.from && dates?.to && hotel.data.rate_per_night?.lowest) {
-                      const fromDate = dates.from instanceof Date ? dates.from : new Date(dates.from);
-                      const toDate = dates.to instanceof Date ? dates.to : new Date(dates.to);
+                      const fromDate = safeDate(dates.from);
+                      const toDate = safeDate(dates.to);
                       
-                      if (!isNaN(fromDate.getTime()) && !isNaN(toDate.getTime())) {
+                      if (fromDate && toDate) {
                         const nights = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
                         const nightlyRate = parseFloat(hotel.data.rate_per_night.lowest.replace(/[^0-9.]/g, ''));
                         totalPrice += (nightlyRate * nights);

@@ -2,7 +2,19 @@ import { collection, doc, getDoc, getDocs, setDoc, query, where, orderBy, Timest
 import { db } from './config';
 import type { Selection } from '@/types/selections';
 import type { DateRange } from "react-day-picker";
+import type { CustomNote } from '@/types/notes';
 import { v4 as uuidv4 } from 'uuid';
+
+const safeDate = (dateValue: any): Date | null => {
+  try {
+    if (!dateValue) return null;
+    const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+    return isNaN(date.getTime()) ? null : date;
+  } catch (error) {
+    console.error('Error creating date:', error);
+    return null;
+  }
+};
 
 export interface SavedItinerary {
   id: string;
@@ -47,10 +59,15 @@ export const saveItinerary = async (
     // Convert DateRange objects to serializable format
     hotelDates: Object.entries(hotelDates).reduce((acc, [key, value]) => {
       if (value?.from && value?.to) {
-        acc[key] = {
-          from: Timestamp.fromDate(value.from),
-          to: Timestamp.fromDate(value.to)
-        };
+        const fromDate = safeDate(value.from);
+        const toDate = safeDate(value.to);
+        
+        if (fromDate && toDate) {
+          acc[key] = {
+            from: Timestamp.fromDate(fromDate),
+            to: Timestamp.fromDate(toDate)
+          };
+        }
       }
       return acc;
     }, {} as Record<string, any>)
@@ -81,10 +98,15 @@ export const updateItinerary = async (
   if (updates.hotelDates) {
     updatedData.hotelDates = Object.entries(updates.hotelDates).reduce((acc, [key, value]) => {
       if (value?.from && value?.to) {
-        acc[key] = {
-          from: Timestamp.fromDate(value.from),
-          to: Timestamp.fromDate(value.to)
-        };
+        const fromDate = safeDate(value.from);
+        const toDate = safeDate(value.to);
+        
+        if (fromDate && toDate) {
+          acc[key] = {
+            from: Timestamp.fromDate(fromDate),
+            to: Timestamp.fromDate(toDate)
+          };
+        }
       }
       return acc;
     }, {} as Record<string, any>);
@@ -92,10 +114,13 @@ export const updateItinerary = async (
   
   // Convert CustomNote dates if present
   if (updates.customNotes) {
-    updatedData.customNotes = updates.customNotes.map(note => ({
-      ...note,
-      date: note.date instanceof Date ? Timestamp.fromDate(note.date) : note.date
-    }));
+    updatedData.customNotes = updates.customNotes.map(note => {
+      const noteDate = safeDate(note.date);
+      return {
+        ...note,
+        date: noteDate ? Timestamp.fromDate(noteDate) : note.date
+      };
+    });
   }
   
   await setDoc(itineraryRef, updatedData, { merge: true });
