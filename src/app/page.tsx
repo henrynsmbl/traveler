@@ -248,13 +248,21 @@ async function streamingSearchAPI(
       onError("Connection error occurred");
     };
 
-    // Auto-close after 30 seconds to prevent hanging connections
-    setTimeout(() => {
+    // Increase timeout to 60 seconds and add better error handling
+    const timeoutId = setTimeout(() => {
       if (eventSource.readyState !== EventSource.CLOSED) {
+        console.log("EventSource timeout reached, closing connection");
         eventSource.close();
-        onError("Request timed out");
+        onError("Request timed out - please try again");
       }
-    }, 30000);
+    }, 60000); // Increased from 30 seconds to 60 seconds
+
+    // Clean up timeout when connection closes naturally
+    const originalClose = eventSource.close.bind(eventSource);
+    eventSource.close = () => {
+      clearTimeout(timeoutId);
+      originalClose();
+    };
 
   } catch (error) {
     console.error('Streaming API call failed:', error);
@@ -375,6 +383,7 @@ export default function Home() {
   const [selections, setSelections] = useState<Selection[]>([])
   const [isSelectionsSidebarOpen, setIsSelectionsSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [pendingUserMessage, setPendingUserMessage] = useState<Message | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const { user } = useAuth()
@@ -401,6 +410,15 @@ export default function Home() {
   };
 
   const messages = currentSession?.messages || []
+  
+  // Combine real messages with pending message for display
+  const displayMessages = useMemo(() => {
+    const allMessages = [...messages];
+    if (pendingUserMessage) {
+      allMessages.push(pendingUserMessage);
+    }
+    return allMessages;
+  }, [messages, pendingUserMessage]);
 
   // Add subscription state
   const [hasSubscription, setHasSubscription] = useState(false);
@@ -458,32 +476,30 @@ export default function Home() {
     }
   }, [user]);
 
-  // Enhance the scrolling behavior with a more robust approach
-  useEffect(() => {
-    // Scroll to the bottom whenever messages change or when the page loads
-    if (messages.length > 0) {
-      // Use a longer timeout to ensure all content (including rich content) has rendered
-      const scrollTimer = setTimeout(() => {
-        if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        }
-      }, 300); // Longer timeout to ensure everything is rendered
-      
-      return () => clearTimeout(scrollTimer);
+  // Simple scroll to bottom function
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'end',
+        inline: 'nearest'
+      });
     }
-  }, [messages]);
+  }, []);
 
-  // Also scroll when loading state changes (after API response completes)
+  // Scroll when messages change
   useEffect(() => {
-    if (!isLoading && messages.length > 0) {
-      // Scroll after loading completes
-      setTimeout(() => {
-        if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        }
-      }, 300);
+    if (displayMessages.length > 0) {
+      scrollToBottom();
     }
-  }, [isLoading, messages.length]);
+  }, [displayMessages, scrollToBottom]);
+
+  // Scroll when streaming text updates
+  useEffect(() => {
+    if (isStreaming && streamingText) {
+      scrollToBottom();
+    }
+  }, [streamingText, isStreaming, scrollToBottom]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -508,9 +524,10 @@ export default function Home() {
       timestamp: new Date()
     }
     
-    const updatedMessages = [...messages, userMessage]
     const inputText = currentInput.trim()
     
+    // Immediately show user message locally to prevent lag
+    setPendingUserMessage(userMessage)
     setCurrentInput('')
     setIsLoading(true)
     
@@ -518,12 +535,17 @@ export default function Home() {
       inputRef.current.style.height = '24px'
     }
 
+    const updatedMessages = [...messages, userMessage]
+
     try {
-      // Update messages immediately to show user input
-      await updateCurrentSession({ 
+      // Update messages in background
+      const updatePromise = updateCurrentSession({ 
         messages: updatedMessages,
         title: generateChatTitle(updatedMessages)
-      })
+      });
+
+      // Clear pending message once we start the API call
+      setPendingUserMessage(null);
 
       // Try streaming if enabled and supported
       if (useStreaming && typeof EventSource !== 'undefined') {
@@ -541,6 +563,8 @@ export default function Home() {
         const onTextChunk = async (text: string) => {
           streamingTextContent = text;
           setStreamingText(text);
+          // Scroll immediately on each chunk
+          setTimeout(() => scrollToBottom(), 0);
         };
 
         const onFlights = async (flights: any) => {
@@ -566,7 +590,8 @@ export default function Home() {
             finalMessages.push({
               contents: [{
                 type: 'text',
-                content: streamingTextContent
+                content: streamingTextContent,
+                citations: collectedCitations || []
               }],
               isUser: false,
               timestamp: new Date()
@@ -606,20 +631,6 @@ export default function Home() {
             finalMessages.push(hotelMessage);
           }
 
-          // Add citations if present
-          if (collectedCitations?.length > 0) {
-            const citationMessage: Message = {
-              contents: [{
-                type: 'text',
-                content: "",
-                citations: collectedCitations
-              }],
-              isUser: false,
-              timestamp: new Date()
-            };
-            finalMessages.push(citationMessage);
-          }
-
           // Final update with all collected data
           await updateCurrentSession({ 
             messages: finalMessages,
@@ -627,16 +638,22 @@ export default function Home() {
           });
           
           setIsLoading(false);
+          // Final scroll when everything is done
+          setTimeout(() => scrollToBottom(), 300);
         };
 
         const onError = async (error: string) => {
-          console.error('Streaming error, falling back to regular API:', error);
+          console.log('Streaming error, falling back to regular API:', error);
           streamingFailed = true;
           setIsStreaming(false);
           setStreamingText('');
           
-          // Don't show error immediately, fall back to regular API
+          // Don't show the error to the user, just fall back silently
+          // The regular API will be attempted automatically
         };
+
+        // Wait for the session update to complete before starting streaming
+        await updatePromise;
 
         try {
           // Attempt streaming
@@ -664,6 +681,10 @@ export default function Home() {
 
       // Fallback to regular API (or if streaming is disabled)
       console.log('Using regular API');
+      
+      // Ensure session is updated before API call
+      await updatePromise;
+      
       const apiResponse = await searchAPI(inputText, messages)
       
       const newMessages: Message[] = []
@@ -673,7 +694,8 @@ export default function Home() {
         const textMessage: Message = {
           contents: [{
             type: 'text',
-            content: apiResponse.response
+            content: apiResponse.response,
+            citations: apiResponse.citations || []
           }],
           isUser: false,
           timestamp: new Date()
@@ -717,20 +739,6 @@ export default function Home() {
         newMessages.push(hotelMessage)
       }
 
-      // Add citations if present
-      if (apiResponse.citations?.length > 0) {
-        const citationMessage: Message = {
-          contents: [{
-            type: 'text',
-            content: "",
-            citations: apiResponse.citations
-          }],
-          isUser: false,
-          timestamp: new Date()
-        }
-        newMessages.push(citationMessage)
-      }
-
       // Update session with all messages
       const finalMessages = [...updatedMessages, ...newMessages]
       await updateCurrentSession({ 
@@ -742,6 +750,7 @@ export default function Home() {
       console.error('Error in handleSubmit:', error);
       setIsStreaming(false);
       setStreamingText('');
+      setPendingUserMessage(null);
       
       const errorMessage: Message = {
         contents: [{
@@ -756,6 +765,8 @@ export default function Home() {
       });
     } finally {
       setIsLoading(false);
+      // Final scroll when everything is done
+      setTimeout(() => scrollToBottom(), 300);
     }
   }
 
@@ -787,7 +798,8 @@ export default function Home() {
   // key generation functions
   const generateMessageKey = (message: Message, index: number): string => {
     const timestamp = message.timestamp ? message.timestamp.getTime() : Date.now();
-    return `${message.isUser ? 'user' : 'assistant'}-${timestamp}-${index}`;
+    const isPending = message === pendingUserMessage;
+    return `${message.isUser ? 'user' : 'assistant'}-${timestamp}-${index}${isPending ? '-pending' : ''}`;
   };
   
   const generateContentKey = (content: MessageContent, messageIndex: number, contentIndex: number): string => {
@@ -879,8 +891,9 @@ export default function Home() {
     onFlightSelect={memoizedHandlers.handleFlightSelect}
     onHotelSelect={memoizedHandlers.handleHotelSelect}
     onUpdate={memoizedHandlers.handleUpdate(messageIndex, contentIndex)}
+    onScrollRequest={() => scrollToBottom()}
   />
-), [memoizedSelections, memoizedHandlers]);
+), [memoizedSelections, memoizedHandlers, scrollToBottom]);
 
   const router = useRouter();
   const [isMapOpen, setIsMapOpen] = useState(false);
@@ -1005,24 +1018,30 @@ export default function Home() {
             ) : (
               <div className="max-w-5xl mx-auto space-y-6 p-4">
                 <div className="relative flex-1 overflow-auto">
-                  {messages.map((message, index) => (
-                    <div
-                      key={generateMessageKey(message, index)}
-                      className={`${message.isUser ? 'flex justify-end' : 'w-full'} mb-4`}
-                    >
+                  {displayMessages.map((message, index) => {
+                    const isPending = message === pendingUserMessage;
+                    return (
                       <div
-                        className={`${
-                          message.isUser
-                            ? 'max-w-[85%] md:max-w-[75%] rounded-lg p-3 bg-blue-500 text-white'
-                            : 'w-full md:w-[85%] space-y-2 text-gray-900 dark:text-gray-100'
-                        }`}
+                        key={generateMessageKey(message, index)}
+                        className={`${message.isUser ? 'flex justify-end' : 'w-full'} mb-4`}
+                        data-message-type={message.isUser ? 'user' : 'assistant'}
                       >
-                        {message.contents.map((content, contentIndex) => 
-                          renderRichContent(content, index, contentIndex, message.isUser)
-                        )}
+                        <div
+                          className={`${
+                            message.isUser
+                              ? `max-w-[85%] md:max-w-[75%] rounded-lg p-3 bg-blue-500 text-white ${
+                                  isPending ? 'opacity-75 animate-pulse' : ''
+                                }`
+                              : 'w-full md:w-[85%] space-y-2 text-gray-900 dark:text-gray-100'
+                          }`}
+                        >
+                          {message.contents.map((content, contentIndex) => 
+                            renderRichContent(content, index, contentIndex, message.isUser)
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <SelectionPopover onAddSelection={handleAddTextSelection} />
                 </div>
                 {(isLoading || isStreaming) && (
@@ -1031,7 +1050,7 @@ export default function Home() {
                     streamingText={streamingText}
                   />
                 )}
-                <div ref={messagesEndRef} />
+                <div ref={messagesEndRef} className="h-8" />
               </div>
             )}
           </main>

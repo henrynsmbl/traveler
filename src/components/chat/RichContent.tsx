@@ -20,6 +20,7 @@ interface RichContentProps {
   selections: Selection[];
   hideOtherFlights?: boolean;
   onMessageRefClick?: (messageId: string) => void;
+  onScrollRequest?: () => void;
 }
 
 const MemoizedHotelDisplay = React.memo(HotelDisplay);
@@ -46,7 +47,8 @@ const RichContent: React.FC<RichContentProps> = React.memo(({
     onHotelSelect,
     selections,
     hideOtherFlights,
-    onMessageRefClick
+    onMessageRefClick,
+    onScrollRequest
   }) => {
     const [showSources, setShowSources] = useState(false);
     
@@ -74,6 +76,16 @@ const RichContent: React.FC<RichContentProps> = React.memo(({
         container.removeEventListener('click', handleClick);
       };
     }, [onMessageRefClick]);
+
+    // Handle citation toggle
+    const handleCitationToggle = (expanded: boolean) => {
+      if (expanded && onScrollRequest) {
+        // Small delay to allow the content to expand before scrolling
+        setTimeout(() => {
+          onScrollRequest();
+        }, 100);
+      }
+    };
     
     switch (content.type) {
       case 'text':
@@ -90,10 +102,12 @@ const RichContent: React.FC<RichContentProps> = React.memo(({
               className={isUser ? 'text-white' : ''} 
               processedContent={processedContent}
               enableReferences={!!onMessageRefClick}
+              citations={content.citations}
             />
             {content.citations && <Citations 
               citations={content.citations} 
               numbered={true}
+              onToggle={handleCitationToggle}
             />}
           </div>
         );

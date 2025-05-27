@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -13,6 +13,7 @@ const LoadingMessage: React.FC<LoadingMessageProps> = ({
 }) => {
   const [dots, setDots] = useState('');
   const [messageIndex, setMessageIndex] = useState(0);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const loadingMessages = [
     "Searching for the best options...",
@@ -42,6 +43,15 @@ const LoadingMessage: React.FC<LoadingMessageProps> = ({
     }
   }, [isStreaming, loadingMessages.length]);
 
+  // Auto-scroll the streaming content to ensure the cursor is visible
+  useEffect(() => {
+    if (isStreaming && streamingText && contentRef.current) {
+      const element = contentRef.current;
+      // Scroll to bottom of the streaming content
+      element.scrollTop = element.scrollHeight;
+    }
+  }, [streamingText, isStreaming]);
+
   if (isStreaming && streamingText) {
     return (
       <div className="w-full md:w-[85%] space-y-2 text-gray-900 dark:text-gray-100">
@@ -54,15 +64,19 @@ const LoadingMessage: React.FC<LoadingMessageProps> = ({
                 <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
               </div>
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                 AI is responding...
               </div>
-              <div className="prose dark:prose-invert max-w-none">
+              <div 
+                ref={contentRef}
+                className="prose dark:prose-invert max-w-none relative"
+                style={{ maxHeight: 'none' }}
+              >
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {streamingText}
                 </ReactMarkdown>
-                <span className="inline-block w-2 h-5 bg-blue-500 ml-1 animate-pulse"></span>
+                <span className="inline-block w-2 h-5 bg-blue-500 ml-1 animate-pulse rounded-sm"></span>
               </div>
             </div>
           </div>
