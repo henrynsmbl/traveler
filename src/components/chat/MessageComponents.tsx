@@ -32,27 +32,123 @@ interface MarkdownMessageProps {
   className?: string;
   processedContent?: string;
   enableReferences?: boolean;
+  citations?: Citation[];
 }
+
+// Helper function to process citation references in text
+const processCitationReferences = (text: string, citations: Citation[] = []) => {
+  if (!text || !citations.length) {
+    return text;
+  }
+  
+  // Replace citation references like [1], [2], etc. with clickable links
+  const result = text.replace(
+    /\[(\d+)\]/g,
+    (match, citationNum) => {
+      const citationIndex = parseInt(citationNum) - 1;
+      const citation = citations[citationIndex];
+      
+      if (citation?.url) {
+        const link = `<a href="${citation.url}" target="_blank" rel="noopener noreferrer" class="citation-link text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 underline font-medium">${match}</a>`;
+        return link;
+      }
+      
+      return match; // Return original if citation not found
+    }
+  );
+  
+  return result;
+};
+
+// Helper function to process citation references in markdown text
+const preprocessCitationsForMarkdown = (text: string, citations: Citation[] = []) => {
+  if (!text || !citations.length) {
+    return text;
+  }
+  
+  // Replace citation references like [1], [2], etc. with markdown links
+  const result = text.replace(
+    /\[(\d+)\]/g,
+    (match, citationNum) => {
+      const citationIndex = parseInt(citationNum) - 1;
+      const citation = citations[citationIndex];
+      
+      if (citation?.url) {
+        // Convert to markdown link format: [text](url)
+        const markdownLink = `[${match}](${citation.url})`;
+        return markdownLink;
+      }
+      
+      return match; // Return original if citation not found
+    }
+  );
+  
+  return result;
+};
 
 export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ 
   content, 
   className = '',
   processedContent,
-  enableReferences = false
+  enableReferences = false,
+  citations = []
 }) => {
+  // If we have message references enabled and processedContent is provided, use that
   if (enableReferences && processedContent) {
+    // If we also have citations, we need to process both
+    const finalContent = citations.length > 0 
+      ? processCitationReferences(processedContent, citations)
+      : processedContent;
+      
     return (
       <div 
         className={`prose dark:prose-invert max-w-none ${className}`}
-        dangerouslySetInnerHTML={{ __html: processedContent }}
+        dangerouslySetInnerHTML={{ __html: finalContent }}
       />
     );
   }
   
+  // Process citations into markdown links before rendering
+  const contentWithCitationLinks = citations.length > 0 
+    ? preprocessCitationsForMarkdown(content, citations)
+    : content;
+  
+  // Custom components to style citation links
+  const components = {
+    a: ({ href, children, ...props }: any) => {
+      // Check if this is a citation link (contains [number] pattern)
+      const isCitationLink = typeof children === 'string' && /^\[\d+\]$/.test(children);
+      
+      if (isCitationLink) {
+        return (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="citation-link text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 underline font-medium"
+            {...props}
+          >
+            {children}
+          </a>
+        );
+      }
+      
+      // Regular links
+      return (
+        <a href={href} {...props}>
+          {children}
+        </a>
+      );
+    }
+  };
+
   return (
     <div className={`prose dark:prose-invert max-w-none ${className}`}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-        {content}
+      <ReactMarkdown 
+        remarkPlugins={[remarkGfm]}
+        components={components}
+      >
+        {contentWithCitationLinks}
       </ReactMarkdown>
     </div>
   );
@@ -61,17 +157,24 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({
 interface CitationsProps {
   citations: Citation[];
   numbered?: boolean;
+  onToggle?: (expanded: boolean) => void;
 }
 
-export const Citations: React.FC<CitationsProps> = ({ citations, numbered = false }) => {
+export const Citations: React.FC<CitationsProps> = ({ citations, numbered = false, onToggle }) => {
   const [showSources, setShowSources] = useState(false);
+  
+  const handleToggle = () => {
+    const newState = !showSources;
+    setShowSources(newState);
+    onToggle?.(newState);
+  };
   
   if (!citations || citations.length === 0) return null;
   
   return (
     <div className="mt-3">
       <button 
-        onClick={() => setShowSources(!showSources)}
+        onClick={handleToggle}
         className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors duration-200"
         aria-expanded={showSources}
       >

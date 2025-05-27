@@ -275,13 +275,29 @@ export const calculateItineraryTotal = (selections: Selection[], hotelDates: { [
     } else if (selection.type === 'hotel') {
       const dates = hotelDates[selection.id];
       if (dates?.from && dates?.to && selection.data.rate_per_night?.lowest) {
-        const nights = Math.ceil((dates.to.getTime() - dates.from.getTime()) / (1000 * 60 * 60 * 24));
-        const nightlyRate = parseFloat(selection.data.rate_per_night.lowest.replace(/[^0-9.]/g, ''));
-        return total + (nightlyRate * nights);
+        const fromDate = safeDate(dates.from);
+        const toDate = safeDate(dates.to);
+        
+        if (fromDate && toDate) {
+          const nights = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
+          const nightlyRate = parseFloat(selection.data.rate_per_night.lowest.replace(/[^0-9.]/g, ''));
+          return total + (nightlyRate * nights);
+        }
       }
       const nightlyRate = parseFloat(selection.data.rate_per_night?.lowest?.replace(/[^0-9.]/g, '') || '0');
       return total + nightlyRate;
     }
     return total;
   }, 0);
+};
+
+const safeDate = (dateValue: any): Date | null => {
+  try {
+    if (!dateValue) return null;
+    const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+    return isNaN(date.getTime()) ? null : date;
+  } catch (error) {
+    console.error('Error creating date:', error);
+    return null;
+  }
 }; 

@@ -165,6 +165,111 @@ async function searchAPI(prompt: string, history: Message[]): Promise<SearchAPIR
   }
 }
 
+// New streaming search function
+async function streamingSearchAPI(
+  prompt: string, 
+  history: Message[], 
+  onTextChunk: (text: string) => void,
+  onFlights: (flights: any) => void,
+  onHotels: (hotels: any) => void,
+  onCitations: (citations: any[]) => void,
+  onComplete: () => void,
+  onError: (error: string) => void
+): Promise<void> {
+  try {
+    console.log("streamingSearchAPI - Starting streaming request with prompt:", prompt);
+    
+    const filteredHistory = history.filter(msg => 
+      msg.contents.some(content => 
+        !content.type || content.type === 'text'
+      )
+    ).map(msg => ({
+      ...msg,
+      contents: msg.contents.filter(content => 
+        !content.type || content.type === 'text'
+      )
+    }));
+
+    // Construct the URL with query parameters
+    const url = new URL('/api/search', window.location.origin);
+    url.searchParams.set('prompt', prompt);
+    url.searchParams.set('history', JSON.stringify(filteredHistory));
+
+    const eventSource = new EventSource(url.toString());
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("Streaming event received:", data);
+        
+        switch (data.type) {
+          case 'start':
+            console.log("Stream started:", data.message);
+            break;
+            
+          case 'text_chunk':
+            onTextChunk(data.content);
+            break;
+            
+          case 'flights':
+            onFlights(data.content);
+            break;
+            
+          case 'hotels':
+            onHotels(data.content);
+            break;
+            
+          case 'citations':
+            onCitations(data.content);
+            break;
+            
+          case 'complete':
+            console.log("Stream completed");
+            eventSource.close();
+            onComplete();
+            break;
+            
+          case 'error':
+            console.error("Stream error:", data.message);
+            eventSource.close();
+            onError(data.message);
+            break;
+        }
+      } catch (parseError) {
+        console.error("Error parsing streaming event:", parseError);
+        eventSource.close();
+        onError("Error parsing response");
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error("EventSource error:", error);
+      eventSource.close();
+      onError("Connection error occurred");
+    };
+
+    // Increase timeout to 60 seconds and add better error handling
+    const timeoutId = setTimeout(() => {
+      if (eventSource.readyState !== EventSource.CLOSED) {
+        console.log("EventSource timeout reached, closing connection");
+        eventSource.close();
+        onError("Request timed out - please try again");
+      }
+    }, 60000); // Increased from 30 seconds to 60 seconds
+
+    // Clean up timeout when connection closes naturally
+    const originalClose = eventSource.close.bind(eventSource);
+    eventSource.close = () => {
+      clearTimeout(timeoutId);
+      originalClose();
+    };
+
+  } catch (error) {
+    console.error('Streaming API call failed:', error);
+    onError(error instanceof Error ? error.message : 'Unknown error occurred');
+  }
+}
+
 // Add this helper function at the top level
 const isEmptyChat = (session: ChatSession | null) => {
   return session?.title === 'New Chat' && (!session.messages || session.messages.length === 0);
@@ -271,10 +376,14 @@ const ModeSelector: React.FC<{
 export default function Home() {
   const [currentInput, setCurrentInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [streamingText, setStreamingText] = useState('')
+  const [useStreaming, setUseStreaming] = useState(true) // User preference for streaming
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [selections, setSelections] = useState<Selection[]>([])
   const [isSelectionsSidebarOpen, setIsSelectionsSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [pendingUserMessage, setPendingUserMessage] = useState<Message | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const { user } = useAuth()
@@ -301,6 +410,15 @@ export default function Home() {
   };
 
   const messages = currentSession?.messages || []
+  
+  // Combine real messages with pending message for display
+  const displayMessages = useMemo(() => {
+    const allMessages = [...messages];
+    if (pendingUserMessage) {
+      allMessages.push(pendingUserMessage);
+    }
+    return allMessages;
+  }, [messages, pendingUserMessage]);
 
   // Add subscription state
   const [hasSubscription, setHasSubscription] = useState(false);
@@ -358,32 +476,30 @@ export default function Home() {
     }
   }, [user]);
 
-  // Enhance the scrolling behavior with a more robust approach
-  useEffect(() => {
-    // Scroll to the bottom whenever messages change or when the page loads
-    if (messages.length > 0) {
-      // Use a longer timeout to ensure all content (including rich content) has rendered
-      const scrollTimer = setTimeout(() => {
-        if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        }
-      }, 300); // Longer timeout to ensure everything is rendered
-      
-      return () => clearTimeout(scrollTimer);
+  // Simple scroll to bottom function
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'end',
+        inline: 'nearest'
+      });
     }
-  }, [messages]);
+  }, []);
 
-  // Also scroll when loading state changes (after API response completes)
+  // Scroll when messages change
   useEffect(() => {
-    if (!isLoading && messages.length > 0) {
-      // Scroll after loading completes
-      setTimeout(() => {
-        if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        }
-      }, 300);
+    if (displayMessages.length > 0) {
+      scrollToBottom();
     }
-  }, [isLoading, messages.length]);
+  }, [displayMessages, scrollToBottom]);
+
+  // Scroll when streaming text updates
+  useEffect(() => {
+    if (isStreaming && streamingText) {
+      scrollToBottom();
+    }
+  }, [streamingText, isStreaming, scrollToBottom]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -408,39 +524,185 @@ export default function Home() {
       timestamp: new Date()
     }
     
-    const updatedMessages = [...messages, userMessage]
+    const inputText = currentInput.trim()
     
+    // Immediately show user message locally to prevent lag
+    setPendingUserMessage(userMessage)
     setCurrentInput('')
     setIsLoading(true)
     
     if (inputRef.current) {
       inputRef.current.style.height = '24px'
     }
-  
+
+    const updatedMessages = [...messages, userMessage]
+
     try {
-      // Update messages immediately to show user input
-      await updateCurrentSession({ 
+      // Update messages in background
+      const updatePromise = updateCurrentSession({ 
         messages: updatedMessages,
         title: generateChatTitle(updatedMessages)
-      })
+      });
 
-      const apiResponse = await searchAPI(currentInput.trim(), messages)
+      // Clear pending message once we start the API call
+      setPendingUserMessage(null);
+
+      // Try streaming if enabled and supported
+      if (useStreaming && typeof EventSource !== 'undefined') {
+        console.log('Attempting to use streaming API');
+        setIsStreaming(true)
+        setStreamingText('')
+
+        // Set up streaming handlers
+        let streamingTextContent = '';
+        let collectedFlights: any = null;
+        let collectedHotels: any = null;
+        let collectedCitations: any[] = [];
+        let streamingFailed = false;
+
+        const onTextChunk = async (text: string) => {
+          streamingTextContent = text;
+          setStreamingText(text);
+          // Scroll immediately on each chunk
+          setTimeout(() => scrollToBottom(), 0);
+        };
+
+        const onFlights = async (flights: any) => {
+          collectedFlights = flights;
+        };
+
+        const onHotels = async (hotels: any) => {
+          collectedHotels = hotels;
+        };
+
+        const onCitations = async (citations: any[]) => {
+          collectedCitations = citations;
+        };
+
+        const onComplete = async () => {
+          setIsStreaming(false);
+          setStreamingText('');
+          
+          const finalMessages: Message[] = [...updatedMessages];
+          
+          // Add the completed text message
+          if (streamingTextContent) {
+            finalMessages.push({
+              contents: [{
+                type: 'text',
+                content: streamingTextContent,
+                citations: collectedCitations || []
+              }],
+              isUser: false,
+              timestamp: new Date()
+            });
+          }
+
+          // Add flight data if available
+          if (collectedFlights && (collectedFlights.best_flights?.length > 0 || collectedFlights.other_flights?.length > 0)) {
+            const flightMessage: Message = {
+              contents: [{
+                type: 'flight',
+                content: {
+                  best_flights: collectedFlights.best_flights || [],
+                  other_flights: collectedFlights.other_flights || [],
+                  search_metadata: collectedFlights.search_metadata
+                }
+              }],
+              isUser: false,
+              timestamp: new Date()
+            };
+            finalMessages.push(flightMessage);
+          }
+
+          // Add hotel data if available
+          if (collectedHotels?.properties?.length > 0) {
+            const hotelMessage: Message = {
+              contents: [{
+                type: 'hotel',
+                content: {
+                  properties: collectedHotels.properties,
+                  search_metadata: collectedHotels.search_metadata
+                }
+              }],
+              isUser: false,
+              timestamp: new Date()
+            };
+            finalMessages.push(hotelMessage);
+          }
+
+          // Final update with all collected data
+          await updateCurrentSession({ 
+            messages: finalMessages,
+            title: generateChatTitle(finalMessages)
+          });
+          
+          setIsLoading(false);
+          // Final scroll when everything is done
+          setTimeout(() => scrollToBottom(), 300);
+        };
+
+        const onError = async (error: string) => {
+          console.log('Streaming error, falling back to regular API:', error);
+          streamingFailed = true;
+          setIsStreaming(false);
+          setStreamingText('');
+          
+          // Don't show the error to the user, just fall back silently
+          // The regular API will be attempted automatically
+        };
+
+        // Wait for the session update to complete before starting streaming
+        await updatePromise;
+
+        try {
+          // Attempt streaming
+          await streamingSearchAPI(
+            inputText,
+            messages,
+            onTextChunk,
+            onFlights,
+            onHotels,
+            onCitations,
+            onComplete,
+            onError
+          );
+
+          // If streaming completed successfully, we're done
+          if (!streamingFailed) {
+            return;
+          }
+        } catch (streamError) {
+          console.log('Streaming failed, falling back to regular API');
+          setIsStreaming(false);
+          setStreamingText('');
+        }
+      }
+
+      // Fallback to regular API (or if streaming is disabled)
+      console.log('Using regular API');
+      
+      // Ensure session is updated before API call
+      await updatePromise;
+      
+      const apiResponse = await searchAPI(inputText, messages)
       
       const newMessages: Message[] = []
-  
+
       // Add text response
       if (apiResponse.response) {
         const textMessage: Message = {
           contents: [{
             type: 'text',
-            content: apiResponse.response
+            content: apiResponse.response,
+            citations: apiResponse.citations || []
           }],
           isUser: false,
           timestamp: new Date()
         }
         newMessages.push(textMessage)
       }
-  
+
       // Add flight data if available
       const flights = apiResponse.flights
       if (flights && (flights.best_flights?.length > 0 || flights.other_flights?.length > 0)) {
@@ -458,7 +720,7 @@ export default function Home() {
         }
         newMessages.push(flightMessage)
       }
-  
+
       // Add hotel data if available
       const hotels = apiResponse.hotels
       const hotelProperties = hotels?.properties || []
@@ -476,30 +738,20 @@ export default function Home() {
         }
         newMessages.push(hotelMessage)
       }
-  
-      // Add citations if present
-      if (apiResponse.citations?.length > 0) {
-        const citationMessage: Message = {
-          contents: [{
-            type: 'text',
-            content: "",
-            citations: apiResponse.citations
-          }],
-          isUser: false,
-          timestamp: new Date()
-        }
-        newMessages.push(citationMessage)
-      }
-  
+
       // Update session with all messages
       const finalMessages = [...updatedMessages, ...newMessages]
       await updateCurrentSession({ 
         messages: finalMessages,
         title: generateChatTitle(finalMessages)
       })
-  
+
     } catch (error) {
-      console.error('Error in handleSubmit:', error)
+      console.error('Error in handleSubmit:', error);
+      setIsStreaming(false);
+      setStreamingText('');
+      setPendingUserMessage(null);
+      
       const errorMessage: Message = {
         contents: [{
           type: 'text',
@@ -507,12 +759,14 @@ export default function Home() {
         }],
         isUser: false,
         timestamp: new Date()
-      }
+      };
       await updateCurrentSession({ 
         messages: [...updatedMessages, errorMessage]
-      })
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
+      // Final scroll when everything is done
+      setTimeout(() => scrollToBottom(), 300);
     }
   }
 
@@ -544,7 +798,8 @@ export default function Home() {
   // key generation functions
   const generateMessageKey = (message: Message, index: number): string => {
     const timestamp = message.timestamp ? message.timestamp.getTime() : Date.now();
-    return `${message.isUser ? 'user' : 'assistant'}-${timestamp}-${index}`;
+    const isPending = message === pendingUserMessage;
+    return `${message.isUser ? 'user' : 'assistant'}-${timestamp}-${index}${isPending ? '-pending' : ''}`;
   };
   
   const generateContentKey = (content: MessageContent, messageIndex: number, contentIndex: number): string => {
@@ -636,8 +891,9 @@ export default function Home() {
     onFlightSelect={memoizedHandlers.handleFlightSelect}
     onHotelSelect={memoizedHandlers.handleHotelSelect}
     onUpdate={memoizedHandlers.handleUpdate(messageIndex, contentIndex)}
+    onScrollRequest={() => scrollToBottom()}
   />
-), [memoizedSelections, memoizedHandlers]);
+), [memoizedSelections, memoizedHandlers, scrollToBottom]);
 
   const router = useRouter();
   const [isMapOpen, setIsMapOpen] = useState(false);
@@ -762,28 +1018,39 @@ export default function Home() {
             ) : (
               <div className="max-w-5xl mx-auto space-y-6 p-4">
                 <div className="relative flex-1 overflow-auto">
-                  {messages.map((message, index) => (
-                    <div
-                      key={generateMessageKey(message, index)}
-                      className={`${message.isUser ? 'flex justify-end' : 'w-full'} mb-4`}
-                    >
+                  {displayMessages.map((message, index) => {
+                    const isPending = message === pendingUserMessage;
+                    return (
                       <div
-                        className={`${
-                          message.isUser
-                            ? 'max-w-[85%] md:max-w-[75%] rounded-lg p-3 bg-blue-500 text-white'
-                            : 'w-full md:w-[85%] space-y-2 text-gray-900 dark:text-gray-100'
-                        }`}
+                        key={generateMessageKey(message, index)}
+                        className={`${message.isUser ? 'flex justify-end' : 'w-full'} mb-4`}
+                        data-message-type={message.isUser ? 'user' : 'assistant'}
                       >
-                        {message.contents.map((content, contentIndex) => 
-                          renderRichContent(content, index, contentIndex, message.isUser)
-                        )}
+                        <div
+                          className={`${
+                            message.isUser
+                              ? `max-w-[85%] md:max-w-[75%] rounded-lg p-3 bg-blue-500 text-white ${
+                                  isPending ? 'opacity-75 animate-pulse' : ''
+                                }`
+                              : 'w-full md:w-[85%] space-y-2 text-gray-900 dark:text-gray-100'
+                          }`}
+                        >
+                          {message.contents.map((content, contentIndex) => 
+                            renderRichContent(content, index, contentIndex, message.isUser)
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <SelectionPopover onAddSelection={handleAddTextSelection} />
                 </div>
-                {isLoading && <LoadingMessage />}
-                <div ref={messagesEndRef} />
+                {(isLoading || isStreaming) && (
+                  <LoadingMessage 
+                    isStreaming={isStreaming} 
+                    streamingText={streamingText}
+                  />
+                )}
+                <div ref={messagesEndRef} className="h-8" />
               </div>
             )}
           </main>
@@ -831,6 +1098,20 @@ export default function Home() {
                                   transition-colors duration-200 text-sm font-medium"
                       >
                         New Chat
+                      </button>
+
+                      {/* Streaming toggle */}
+                      <button
+                        onClick={() => setUseStreaming(!useStreaming)}
+                        className="absolute -top-12 right-0 
+                                  bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700
+                                  text-gray-600 dark:text-gray-300 px-3 py-2 rounded-full
+                                  border border-gray-300 dark:border-gray-600 shadow-sm
+                                  transition-colors duration-200 text-xs font-medium flex items-center gap-2"
+                        title={useStreaming ? 'Disable real-time streaming' : 'Enable real-time streaming'}
+                      >
+                        <div className={`w-2 h-2 rounded-full ${useStreaming ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                        {useStreaming ? 'Live' : 'Standard'}
                       </button>
                       
                       <form onSubmit={handleSubmit}>
